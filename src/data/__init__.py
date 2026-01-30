@@ -21,13 +21,11 @@ Usage:
 """
 
 from src.data.fetcher import MLBDataFetcher
-from src.data.analyzer import MLBStatsAnalyzer
 from src.data.predictor_data import PredictionDataProcessor
 from src.data.series_tracker import SeriesTracker
 
 __all__ = [
     "MLBDataFetcher",
-    "MLBStatsAnalyzer",
     "PredictionDataProcessor",
     "SeriesTracker",
 ]

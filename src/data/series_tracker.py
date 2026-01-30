@@ -68,7 +68,7 @@ class SeriesTracker:
         tomorrow = self._get_tomorrow_date(game_date)
 
         try:
-            tomorrow_games = self.fetcher.get_schedule(date=tomorrow)
+            tomorrow_games = self.fetcher.get_schedule(start_date=tomorrow)
 
             # Check if same teams play tomorrow
             for next_game in tomorrow_games:
@@ -255,7 +255,7 @@ class SeriesTracker:
 
             for i in range(1, 8):
                 next_date = (search_date + timedelta(days=i)).strftime("%Y-%m-%d")
-                games = self.fetcher.get_schedule(date=next_date)
+                games = self.fetcher.get_schedule(start_date=next_date)
 
                 for game in games:
                     if team in [game.get("home_team"), game.get("away_team")]:
@@ -287,7 +287,7 @@ class SeriesTracker:
 
             for i in range(5):
                 check_date = (end - timedelta(days=i)).strftime("%Y-%m-%d")
-                daily_games = self.fetcher.get_schedule(date=check_date)
+                daily_games = self.fetcher.get_schedule(start_date=check_date)
 
                 for game in daily_games:
                     # Check if same matchup

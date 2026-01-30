@@ -153,18 +153,50 @@ class PredictionDataProcessor:
             List of game dictionaries with stats
         """
         try:
-            # This would call the fetcher to get game logs
-            # For now, return placeholder
-            games = []
+            # Resolve player name to ID if needed
+            player_id = player
+            if isinstance(player, str) and not player.isdigit():
+                player_id = self.fetcher.get_player_id(player)
+                
+            if not player_id:
+                logger.warning(f"Could not resolve player ID for {player}")
+                return []
 
-            # TODO: Implement actual API call
-            # games = self.fetcher.get_player_game_logs(player, season)
+            # Fetch logs (defaulting to hitting for now)
+            logs = self.fetcher.get_player_game_logs(player_id, season=season, group="hitting")
+            
+            # standardize logs to expected format for features
+            games = []
+            for log in logs:
+                stat = log.get("stat", {})
+                date_str = log.get("date")
+                is_home = log.get("isHome", False)
+                
+                games.append({
+                    "date": date_str,
+                    "batting_average": float(stat.get("avg", 0.0)),
+                    "on_base_pct": float(stat.get("obp", 0.0)),
+                    "slugging_pct": float(stat.get("slg", 0.0)),
+                    "home_runs": int(stat.get("homeRuns", 0)),
+                    "rbi": int(stat.get("rbi", 0)),
+                    "hits": int(stat.get("hits", 0)),
+                    "at_bats": int(stat.get("atBats", 0)),
+                    "walks": int(stat.get("baseOnBalls", 0)),
+                    "strikeouts": int(stat.get("strikeOuts", 0)),
+                    "is_home": is_home,
+                    "season_break": 0
+                })
 
             # Filter by date if specified
             if before_date and games:
                 before = datetime.strptime(before_date, "%Y-%m-%d")
                 games = [g for g in games
                         if datetime.strptime(g.get("date"), "%Y-%m-%d") < before]
+
+            # Sort by date ascending
+            games.sort(key=lambda x: x["date"])
+            
+            return games
 
             return games
 

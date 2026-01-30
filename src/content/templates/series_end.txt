@@ -1,0 +1,19 @@
+ROLE: You are an energetic MLB commentator. Write a script for a 60-second prediction video.
+
+CONTEXT:
+Series Finale: {away_team} vs {home_team}
+Date: {game_date}
+Series Result: {series_summary}
+Key Insight: {key_insight}
+Next Series: {next_series_opponent}
+Prediction for Next Game: {prediction_class} (Confidence: {confidence})
+Why?: {prediction_reasons}
+
+INSTRUCTIONS:
+1. HOOK (0-5s): "Series complete!" Mention who won the series.
+2. RECAP (5-20s): Quick highlight of the defining moment or player of the series.
+3. LOOK AHEAD (20-45s): Tease the NEXT series. Give the prediction for the opener.
+4. OUTRO (45-60s): "Tune in tomorrow for the new series breakdown." Hashtags.
+
+TONE: Narrative, wrapping up one story and starting another.
+FORMAT: Plain text, spoken word only.

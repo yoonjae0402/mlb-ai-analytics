@@ -3,12 +3,13 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
 class CostTracker:
     """
-    Tracks API costs (OpenAI, ElevenLabs) to a local file.
+    Tracks API costs (OpenAI, DashScope) to a local file.
     """
     
     def __init__(self, log_file: str = "data/costs.jsonl"):
@@ -19,7 +20,7 @@ class CostTracker:
         self.PRICING = {
             "gpt-4o-input": 2.50 / 1e6, # per token
             "gpt-4o-output": 10.00 / 1e6, # per token
-            "elevenlabs": 0.30 / 1000, # per character (starter/creator tier avg)
+            "dashscope": 2.00 / 1e6, # per character ($2 per 1M chars approx)
         }
         
     def log_openai_usage(
@@ -43,14 +44,14 @@ class CostTracker:
         }
         self._write_entry(entry)
         
-    def log_elevenlabs_usage(self, voice_id: str, characters: int):
-        """Log ElevenLabs API usage."""
-        cost = characters * self.PRICING["elevenlabs"]
+    def log_dashscope_usage(self, model: str, characters: int):
+        """Log DashScope API usage."""
+        cost = characters * self.PRICING["dashscope"]
         
         entry = {
             "timestamp": datetime.now().isoformat(),
-            "provider": "elevenlabs",
-            "model": voice_id,
+            "provider": "dashscope",
+            "model": model,
             "characters": characters,
             "cost_usd": float(f"{cost:.5f}")
         }
@@ -75,3 +76,8 @@ class CostTracker:
                     except:
                         pass
         return total
+
+@lru_cache()
+def get_cost_tracker() -> CostTracker:
+    """Get global cost tracker instance."""
+    return CostTracker()

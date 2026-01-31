@@ -1,26 +1,24 @@
-import os
 import logging
+import os
 from typing import Optional
 from pathlib import Path
-from elevenlabs.client import ElevenLabs
+
+from src.audio.tts_engine import TTSEngine
 from src.utils.cost_tracker import CostTracker
 
 logger = logging.getLogger(__name__)
 
 class AudioGenerator:
     """
-    Generates audio from text using ElevenLabs API.
+    Generates audio from text using TTSEngine (DashScope).
     """
     
     def __init__(self, cost_tracker: Optional[CostTracker] = None):
-        self.api_key = os.getenv("ELEVENLABS_API_KEY")
-        self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb") # Default to 'George' or similar
-        
-        if not self.api_key:
-            logger.warning("ELEVENLABS_API_KEY not found.")
-            self.client = None
-        else:
-            self.client = ElevenLabs(api_key=self.api_key)
+        try:
+            self.engine = TTSEngine()
+        except Exception as e:
+            logger.warning(f"TTSEngine initialization failed: {e}")
+            self.engine = None
             
         self.cost_tracker = cost_tracker or CostTracker()
         
@@ -28,34 +26,45 @@ class AudioGenerator:
         """
         Synthesize speech from text.
         """
-        if not self.client:
-            logger.error("ElevenLabs client not initialized.")
+        if not self.engine:
+            logger.error("TTS Engine not initialized.")
             return None
             
         try:
             logger.info(f"Generating audio for: '{text[:30]}...'")
             
-            # Generate
-            audio = self.client.generate(
-                text=text,
-                voice=self.voice_id,
-                model="eleven_monolingual_v1"
-            )
+            # Generate using TTSEngine
+            # TTSEngine generates a hash-based filename by default, so we might need to move it
+            # or just use TTSEngine's logic.
+            # But the signature here takes specific output_path.
             
-            # Save
-            path = Path(output_path)
-            path.parent.mkdir(parents=True, exist_ok=True)
+            # Since TTSEngine.generate_narration returns a Path, 
+            # and handles file creation, let's adapt.
             
-            # audio is a generator, consume it to write
-            with open(path, "wb") as f:
-                for chunk in audio:
-                    f.write(chunk)
+            # If output_path is provided, we might want to respect it.
+            # TTSEngine.generate_narration takes output_name (basename).
             
-            # Track cost
-            self.cost_tracker.log_elevenlabs_usage(self.voice_id, len(text))
+            target_path = Path(output_path)
+            output_name = target_path.stem
             
-            logger.info(f"Audio saved to {path}")
-            return str(path)
+            # Temporarily override output_dir of engine if needed, or just move file after.
+            # Cleaner: Update TTSEngine to accept absolute path or just use it as is if straightforward.
+            # Let's just blindly use engine and move the file for now, or use engine's output_dir if it matches.
+            
+            generated_path = self.engine.generate_narration(text, output_name=output_name)
+            
+            # If the generated path is not the target path, move it?
+            # TTSEngine appends timestamp.
+            
+            if generated_path != target_path:
+                # Ensuring target directory exists
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                # Rename/Move
+                generated_path.replace(target_path)
+                logger.info(f"Moved audio to {target_path}")
+                return str(target_path)
+
+            return str(generated_path)
             
         except Exception as e:
             logger.error(f"Error generating audio: {e}")

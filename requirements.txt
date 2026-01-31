@@ -16,7 +16,7 @@ scikit-learn>=1.4.0,<2.0.0     # ML utilities (train/test split, metrics)
 # AI APIs
 # =============================================================================
 openai>=1.40.0,<2.0.0          # GPT-4 for script generation
-elevenlabs>=1.0.0,<2.0.0       # Text-to-speech narration (SDK v1.x)
+dashscope>=1.20.0        # Alibaba Cloud DashScope (Qwen3-TTS)
 
 # =============================================================================
 # Video & Image Processing

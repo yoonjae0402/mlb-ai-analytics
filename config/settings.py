@@ -52,13 +52,17 @@ class Settings(BaseSettings):
         default=None,
         description="OpenAI API key for GPT-4"
     )
-    elevenlabs_api_key: Optional[str] = Field(
+    dashscope_api_key: Optional[str] = Field(
         default=None,
-        description="ElevenLabs API key for TTS"
+        description="Alibaba Cloud DashScope API key for Qwen3-TTS"
     )
-    elevenlabs_voice_id: str = Field(
-        default="21m00Tcm4TlvDq8ikWAM",  # Default "Rachel" voice
-        description="ElevenLabs voice ID"
+    tts_model: str = Field(
+        default="qwen3-tts-flash",
+        description="TTS Model ID"
+    )
+    tts_voice: str = Field(
+        default="longxiaochun",
+        description="TTS Voice ID"
     )
     youtube_api_key: Optional[str] = Field(
         default=None,
@@ -110,9 +114,9 @@ class Settings(BaseSettings):
         le=4000,
         description="Max tokens per GPT request"
     )
-    elevenlabs_monthly_chars: int = Field(
-        default=100000,
-        description="Monthly character limit for ElevenLabs"
+    dashscope_cost_per_million_chars: float = Field(
+        default=2.0,
+        description="Cost per 1M characters (approximate)"
     )
 
     # =========================================================================
@@ -207,7 +211,7 @@ class Settings(BaseSettings):
         """Check which API keys are configured."""
         return {
             "openai": bool(self.openai_api_key),
-            "elevenlabs": bool(self.elevenlabs_api_key),
+            "dashscope": bool(self.dashscope_api_key),
             "youtube": bool(self.youtube_api_key),
             "aws": bool(self.aws_access_key_id and self.aws_secret_access_key),
         }

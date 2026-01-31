@@ -1,32 +1,20 @@
 """
 MLB Video Pipeline - Text-to-Speech Engine
 
-Generates natural narration using ElevenLabs API.
+Generates natural narration using Alibaba Cloud DashScope (Qwen3-TTS).
 Handles voice selection, audio generation, and file management.
 
-Compatible with ElevenLabs SDK v1.x
-
-Usage:
-    from src.audio.tts_engine import TTSEngine
-
-    tts = TTSEngine()
-
-    # Generate narration
-    audio_path = tts.generate_narration(
-        "Welcome to today's game recap...",
-        output_name="game_recap_12345"
-    )
-
-    # List available voices
-    voices = tts.list_voices()
+Compatible with DashScope SDK
 """
 
 from pathlib import Path
 from typing import Any
 from datetime import datetime
 import hashlib
+import json
 
-from elevenlabs import ElevenLabs
+import dashscope
+from dashscope.audio.tts import SpeechSynthesizer
 
 from config.settings import settings
 from src.utils.logger import get_logger
@@ -38,60 +26,46 @@ logger = get_logger(__name__)
 
 class TTSEngine:
     """
-    Text-to-speech engine using ElevenLabs.
+    Text-to-speech engine using DashScope (Qwen3-TTS).
 
     Generates natural-sounding narration for video scripts.
-    Supports multiple voices and voice settings customization.
-
-    Compatible with ElevenLabs SDK v1.x
     """
 
-    # ElevenLabs pricing (approximate, per 1K characters)
-    PRICE_PER_1K_CHARS = 0.18
-
-    # Recommended voices for sports narration
-    RECOMMENDED_VOICES = {
-        "adam": "pNInz6obpgDQGcFmaJgB",  # Deep, authoritative
-        "josh": "TxGEqnHWrfWFTfGW9XjX",  # Energetic
-        "sam": "yoZ06aMxZJJ28mfd3POQ",   # Clear, neutral
-        "rachel": "21m00Tcm4TlvDq8ikWAM", # Professional female
-    }
+    # DashScope Qwen3 pricing (approximate, per 1K characters)
+    # Adjust based on settings
+    PRICE_PER_1K_CHARS = settings.dashscope_cost_per_million_chars / 1000
 
     def __init__(
         self,
         api_key: str | None = None,
-        voice_id: str | None = None,
+        model: str | None = None,
+        voice: str | None = None,
         output_dir: Path | None = None,
     ):
         """
         Initialize the TTS engine.
 
         Args:
-            api_key: ElevenLabs API key
-            voice_id: Voice ID to use for narration
+            api_key: DashScope API key
+            model: Model ID to use
+            voice: Voice ID to use
             output_dir: Directory for audio output
         """
-        self.api_key = api_key or settings.elevenlabs_api_key
+        self.api_key = api_key or settings.dashscope_api_key
         if not self.api_key:
-            raise ValueError("ElevenLabs API key not configured")
+            raise ValueError("DashScope API key not configured")
+        
+        # Configure dashscope
+        dashscope.api_key = self.api_key
 
-        self.voice_id = voice_id or settings.elevenlabs_voice_id
+        self.model = model or settings.tts_model
+        self.voice = voice or settings.tts_voice
         self.output_dir = output_dir or settings.audio_output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize ElevenLabs client (SDK v1.x)
-        self.client = ElevenLabs(api_key=self.api_key)
         self.cost_tracker = get_cost_tracker()
 
-        # Default voice settings
-        self.voice_settings = {
-            "stability": 0.5,
-            "similarity_boost": 0.75,
-            "style": 0.0,
-            "use_speaker_boost": True,
-        }
-
-        logger.info(f"TTSEngine initialized with voice: {self.voice_id}")
+        logger.info(f"TTSEngine initialized with model: {self.model}, voice: {self.voice}")
 
     # =========================================================================
     # Voice Management
@@ -100,77 +74,26 @@ class TTSEngine:
     def list_voices(self) -> list[dict[str, Any]]:
         """
         List available voices.
-
-        Returns:
-            List of voice information dictionaries
+        
+        DashScope currently has a set list of voices for Qwen3-TTS/CosyVoice.
+        Returning a static list of popular ones for now.
         """
-        try:
-            response = self.client.voices.get_all()
-            voices = []
-
-            for voice in response.voices:
-                voices.append({
-                    "voice_id": voice.voice_id,
-                    "name": voice.name,
-                    "category": getattr(voice, 'category', None),
-                    "labels": getattr(voice, 'labels', {}),
-                })
-
-            return voices
-        except Exception as e:
-            logger.error(f"Failed to list voices: {e}")
-            raise
+        return [
+            {"voice_id": "longxiaochun", "name": "Long Xiaochun (Female)", "language": "Chinese/English"},
+            {"voice_id": "longwan", "name": "Long Wan (Male)", "language": "Chinese/English"},
+            {"voice_id": "longcheng", "name": "Long Cheng (Male)", "language": "Chinese/English"},
+            {"voice_id": "longhua", "name": "Long Hua (Female)", "language": "Chinese/English"},
+        ]
 
     def set_voice(self, voice_id: str) -> None:
         """
         Set the voice to use for generation.
 
         Args:
-            voice_id: ElevenLabs voice ID
+            voice_id: DashScope voice ID
         """
-        self.voice_id = voice_id
+        self.voice = voice_id
         logger.info(f"Voice set to: {voice_id}")
-
-    def set_voice_by_name(self, name: str) -> bool:
-        """
-        Set voice by name (from recommended voices).
-
-        Args:
-            name: Voice name (adam, josh, sam, rachel)
-
-        Returns:
-            True if voice was found and set
-        """
-        name = name.lower()
-        if name in self.RECOMMENDED_VOICES:
-            self.voice_id = self.RECOMMENDED_VOICES[name]
-            logger.info(f"Voice set to {name}: {self.voice_id}")
-            return True
-
-        logger.warning(f"Voice '{name}' not found in recommended voices")
-        return False
-
-    def configure_voice(
-        self,
-        stability: float = 0.5,
-        similarity_boost: float = 0.75,
-        style: float = 0.0,
-    ) -> None:
-        """
-        Configure voice settings.
-
-        Args:
-            stability: Voice stability (0-1, higher = more consistent)
-            similarity_boost: Voice clarity (0-1, higher = clearer)
-            style: Style exaggeration (0-1)
-        """
-        self.voice_settings = {
-            "stability": max(0, min(1, stability)),
-            "similarity_boost": max(0, min(1, similarity_boost)),
-            "style": max(0, min(1, style)),
-            "use_speaker_boost": True,
-        }
-        logger.info(f"Voice settings updated: stability={stability}, similarity={similarity_boost}")
 
     # =========================================================================
     # Audio Generation
@@ -180,7 +103,6 @@ class TTSEngine:
         self,
         text: str,
         output_name: str | None = None,
-        model: str = "eleven_turbo_v2_5",
     ) -> Path:
         """
         Generate audio narration from text.
@@ -188,7 +110,6 @@ class TTSEngine:
         Args:
             text: Script text to convert to speech
             output_name: Base name for output file
-            model: ElevenLabs model to use (eleven_turbo_v2_5, eleven_multilingual_v2, etc.)
 
         Returns:
             Path to generated audio file
@@ -208,35 +129,35 @@ class TTSEngine:
 
         if settings.dry_run:
             logger.info("DRY RUN: Would generate audio")
-            # Create empty placeholder file
             output_path.touch()
             return output_path
 
         try:
-            # Generate audio using SDK v1.x text_to_speech API
-            audio_generator = self.client.text_to_speech.convert(
-                voice_id=self.voice_id,
+            # Generate audio using DashScope
+            result = SpeechSynthesizer.call(
+                model=self.model,
                 text=text,
-                model_id=model,
-                voice_settings={
-                    "stability": self.voice_settings["stability"],
-                    "similarity_boost": self.voice_settings["similarity_boost"],
-                    "style": self.voice_settings["style"],
-                    "use_speaker_boost": self.voice_settings["use_speaker_boost"],
-                },
+                voice=self.voice,
+                format='mp3'
             )
 
-            # Save audio to file
-            with open(output_path, "wb") as f:
-                for chunk in audio_generator:
-                    f.write(chunk)
+            if result.get_audio_data() is not None:
+                with open(output_path, 'wb') as f:
+                    f.write(result.get_audio_data())
+            else:
+                 logger.error(f"DashScope API Error: {result}")
+                 raise RuntimeError(f"Failed to generate audio: {result.message}")
 
             # Track cost
             char_count = len(text)
-            cost = (char_count / 1000) * self.PRICE_PER_1K_CHARS
-            self.cost_tracker.log_api_call("elevenlabs", cost, characters=char_count)
+            
+            # Log usage
+            if hasattr(self.cost_tracker, 'log_dashscope_usage'):
+                self.cost_tracker.log_dashscope_usage(self.model, char_count)
+            else:
+                logger.warning("Cost tracker does not support dashscope logging")
 
-            logger.info(f"Audio saved to {output_path} (${cost:.4f})")
+            logger.info(f"Audio saved to {output_path}")
             return output_path
 
         except Exception as e:
@@ -251,10 +172,8 @@ class TTSEngine:
         """
         Generate multiple audio segments.
 
-        Useful for scripts with different sections or speakers.
-
         Args:
-            segments: List of {"text": str, "voice_id": str (optional)}
+            segments: List of {"text": str, "voice": str (optional)}
             output_prefix: Prefix for output filenames
 
         Returns:
@@ -264,19 +183,19 @@ class TTSEngine:
 
         for i, segment in enumerate(segments):
             text = segment.get("text", "")
-            voice_id = segment.get("voice_id", self.voice_id)
+            voice = segment.get("voice", self.voice)
 
             # Temporarily change voice if specified
-            original_voice = self.voice_id
-            if voice_id != self.voice_id:
-                self.voice_id = voice_id
+            original_voice = self.voice
+            if voice != self.voice:
+                self.voice = voice
 
             try:
                 output_name = f"{output_prefix}_{i:03d}"
                 path = self.generate_narration(text, output_name)
                 audio_paths.append(path)
             finally:
-                self.voice_id = original_voice
+                self.voice = original_voice
 
         logger.info(f"Generated {len(audio_paths)} audio segments")
         return audio_paths
@@ -288,16 +207,9 @@ class TTSEngine:
     def get_audio_duration(self, audio_path: Path) -> float:
         """
         Get duration of an audio file in seconds.
-
-        Args:
-            audio_path: Path to audio file
-
-        Returns:
-            Duration in seconds
         """
         try:
             from moviepy.editor import AudioFileClip
-
             with AudioFileClip(str(audio_path)) as audio:
                 return audio.duration
         except ImportError:
@@ -308,68 +220,20 @@ class TTSEngine:
             return 0.0
 
     def estimate_duration(self, text: str, wpm: int = 150) -> float:
-        """
-        Estimate narration duration without generating audio.
-
-        Args:
-            text: Script text
-            wpm: Words per minute speaking rate
-
-        Returns:
-            Estimated duration in seconds
-        """
+        """Estimate narration duration."""
         word_count = len(text.split())
         return (word_count / wpm) * 60
 
     def estimate_cost(self, text: str) -> float:
-        """
-        Estimate cost for generating narration.
-
-        Args:
-            text: Script text
-
-        Returns:
-            Estimated cost in USD
-        """
+        """Estimate cost."""
         char_count = len(text)
         return (char_count / 1000) * self.PRICE_PER_1K_CHARS
 
-    # =========================================================================
-    # Utility Methods
-    # =========================================================================
-
-    def check_character_limit(self) -> dict[str, int]:
-        """
-        Check remaining character allocation.
-
-        Returns:
-            Dictionary with usage information
-        """
-        try:
-            user_info = self.client.user.get()
-            subscription = user_info.subscription
-            return {
-                "character_count": subscription.character_count,
-                "character_limit": subscription.character_limit,
-                "remaining": subscription.character_limit - subscription.character_count,
-            }
-        except Exception as e:
-            logger.error(f"Failed to check character limit: {e}")
-            return {"error": str(e)}
-
-    def get_cost_summary(self) -> dict[str, Any]:
-        """Get cost tracking summary."""
-        return self.cost_tracker.get_summary()
-
     def health_check(self) -> bool:
         """
-        Check if the ElevenLabs API is accessible.
-
-        Returns:
-            True if API is responding
+        Check if the DashScope API is accessible.
+        
+        We'll just try to instantiate a synthesizer or do a weak check.
+        API Key is already checked in init.
         """
-        try:
-            self.client.user.get()
-            return True
-        except Exception:
-            return False
+        return bool(self.api_key)

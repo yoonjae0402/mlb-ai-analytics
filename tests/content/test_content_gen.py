@@ -48,35 +48,43 @@ class TestCostTracker:
         tracker = CostTracker(log_file=str(log_file))
         
         tracker.log_openai_usage("gpt-4o", 1000, 500)
+        tracker.log_dashscope_usage("qwen3-tts-flash", 5000)
         
         assert log_file.exists()
-        content = log_file.read_text()
-        entry = json.loads(content)
-        assert entry["input_tokens"] == 1000
-        assert entry["model"] == "gpt-4o"
-        assert entry["cost_usd"] > 0
+        content = log_file.read_text().splitlines()
+        
+        entry_openai = json.loads(content[0])
+        assert entry_openai["input_tokens"] == 1000
+        assert entry_openai["model"] == "gpt-4o"
+        assert entry_openai["cost_usd"] > 0
+        
+        entry_dashscope = json.loads(content[1])
+        assert entry_dashscope["characters"] == 5000
+        assert entry_dashscope["provider"] == "dashscope"
+        assert entry_dashscope["cost_usd"] > 0
 
 class TestAudioGenerator:
     @pytest.fixture
-    def mock_eleven(self):
-        with patch('src.content.audio_generator.ElevenLabs') as mock:
+    def mock_tts_engine(self):
+        with patch('src.content.audio_generator.TTSEngine') as mock:
             yield mock
 
-    def test_generate_audio(self, mock_eleven, tmp_path):
-        # Mock client
-        mock_client = MagicMock()
-        mock_eleven.return_value = mock_client
-        mock_client.generate.return_value = [b"chunk1", b"chunk2"] # Generator
+    def test_generate_audio(self, mock_tts_engine, tmp_path):
+        # Mock engine instance
+        mock_instance = MagicMock()
+        mock_tts_engine.return_value = mock_instance
+        
+        # Setup specific output from generate_narration
+        mock_output_path = tmp_path / "generated_audio.mp3"
+        mock_output_path.touch()
+        mock_instance.generate_narration.return_value = mock_output_path
         
         tracker = MagicMock()
         generator = AudioGenerator(cost_tracker=tracker)
-        generator.api_key = "fake_key" # Force init
-        generator.client = mock_client # Force client injection
         
-        output = tmp_path / "test.mp3"
-        result = generator.generate_audio("Hello", str(output))
+        target_output = tmp_path / "target.mp3"
+        result = generator.generate_audio("Hello", str(target_output))
         
-        assert result == str(output)
-        assert output.exists()
-        assert output.read_bytes() == b"chunk1chunk2"
-        tracker.log_elevenlabs_usage.assert_called_with(generator.voice_id, 5)
+        assert result == str(target_output)
+        assert target_output.exists() # Should have been moved/renamed
+        mock_instance.generate_narration.assert_called_once()

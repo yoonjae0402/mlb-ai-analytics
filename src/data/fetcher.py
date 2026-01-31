@@ -5,12 +5,51 @@ import logging
 from datetime import datetime, timedelta
 import os
 import json
+import time
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Any
+from typing import Dict, List, Optional, Union, Any, Callable
+from functools import wraps
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+def retry_on_api_error(max_retries: int = 3, backoff_factor: float = 2.0):
+    """
+    Decorator to retry API calls with exponential backoff.
+
+    Args:
+        max_retries: Maximum number of retry attempts
+        backoff_factor: Multiplier for exponential backoff (seconds)
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+
+                    if attempt < max_retries:
+                        wait_time = backoff_factor ** attempt
+                        logger.warning(
+                            f"API call failed (attempt {attempt + 1}/{max_retries + 1}): {e}. "
+                            f"Retrying in {wait_time:.1f}s..."
+                        )
+                        time.sleep(wait_time)
+                    else:
+                        logger.error(
+                            f"API call failed after {max_retries + 1} attempts: {e}"
+                        )
+
+            # Re-raise the last exception if all retries failed
+            raise last_exception
+
+        return wrapper
+    return decorator
 
 class MLBDataFetcher:
     """
@@ -81,6 +120,12 @@ class MLBDataFetcher:
         except Exception as e:
             logger.warning(f"Failed to save cache for {key}: {e}")
 
+    @retry_on_api_error(max_retries=3, backoff_factor=2.0)
+    def _fetch_schedule_from_api(self, start_date: str, end_date: str) -> List[Dict]:
+        """Internal method to fetch schedule with retry logic."""
+        logger.info(f"Fetching schedule from {start_date} to {end_date}")
+        return statsapi.schedule(start_date=start_date, end_date=end_date)
+
     def get_schedule(self, start_date: str, end_date: str = None) -> List[Dict]:
         """
         Fetch schedule for a date range.
@@ -88,20 +133,34 @@ class MLBDataFetcher:
         """
         if end_date is None:
             end_date = start_date
-            
+
         cache_key = f"schedule_{start_date}_{end_date}"
         cached = self._load_from_cache(cache_key, "schedule")
         if cached:
             return cached
-            
+
         try:
-            logger.info(f"Fetching schedule from {start_date} to {end_date}")
-            schedule = statsapi.schedule(start_date=start_date, end_date=end_date)
+            schedule = self._fetch_schedule_from_api(start_date, end_date)
             self._save_to_cache(cache_key, schedule)
             return schedule
         except Exception as e:
             logger.error(f"Error fetching schedule: {e}")
             return []
+
+    @retry_on_api_error(max_retries=3, backoff_factor=2.0)
+    def _fetch_game_data_from_api(self, game_id: int) -> Dict:
+        """Internal method to fetch game data with retry logic."""
+        logger.info(f"Fetching game data for {game_id}")
+        # Get boxscore content
+        boxscore = statsapi.boxscore_data(game_id)
+        # Get linescore
+        linescore = statsapi.linescore(game_id)
+
+        return {
+            "game_id": game_id,
+            "boxscore": boxscore,
+            "linescore": linescore
+        }
 
     def get_game_data(self, game_id: int) -> Dict:
         """
@@ -111,20 +170,9 @@ class MLBDataFetcher:
         cached = self._load_from_cache(cache_key, "game_data")
         if cached:
             return cached
-            
+
         try:
-            logger.info(f"Fetching game data for {game_id}")
-            # Get boxscore content
-            boxscore = statsapi.boxscore_data(game_id)
-            # Get linescore
-            linescore = statsapi.linescore(game_id)
-            
-            combined_data = {
-                "game_id": game_id,
-                "boxscore": boxscore,
-                "linescore": linescore
-            }
-            
+            combined_data = self._fetch_game_data_from_api(game_id)
             # Only cache if game is Final to prevent stale live data in long-term cache
             # For this simple versions, we cache everything but with short expiry (5 mins)
             self._save_to_cache(cache_key, combined_data)
@@ -159,38 +207,40 @@ class MLBDataFetcher:
             
         return pd.DataFrame()
             
+    @retry_on_api_error(max_retries=3, backoff_factor=2.0)
+    def _fetch_player_game_logs_from_api(self, player_id: int, season: int, group: str) -> List[Dict]:
+        """Internal method to fetch player game logs with retry logic."""
+        logger.info(f"Fetching game logs for player {player_id}, season {season}")
+        # Use statsapi.get to hit the hydrating endpoint
+        params = {
+            "personId": player_id,
+            "stats": "gameLog",
+            "group": group,
+            "season": season
+        }
+        data = statsapi.get("people_stats", params)
+
+        logs = []
+        if "stats" in data:
+            for stat_group in data["stats"]:
+                if "splits" in stat_group:
+                    logs.extend(stat_group["splits"])
+        return logs
+
     def get_player_game_logs(self, player_id: int, season: int = None, group: str = "hitting") -> List[Dict]:
         """
         Fetch game logs for a player in a specific season.
         """
         if not season:
             season = datetime.now().year
-            
+
         cache_key = f"player_{player_id}_log_{season}_{group}"
         cached = self._load_from_cache(cache_key, "player_stats")
         if cached:
             return cached
-            
+
         try:
-            logger.info(f"Fetching game logs for player {player_id}, season {season}")
-            # Use statsapi.get to hit the hydrating endpoint
-            params = {
-                "personId": player_id,
-                "stats": "gameLog",
-                "group": group,
-                "season": season
-            }
-            data = statsapi.get("people_stats", params)
-            
-            logs = []
-            if "stats" in data:
-                for stat_group in data["stats"]:
-                    if "splits" in stat_group:
-                        logs.extend(stat_group["splits"])
-                        
-            # Transform to a flatter, usable format if needed, or return raw splits
-            # For now, let's just return the splits which contain 'stat' and 'date'
-            
+            logs = self._fetch_player_game_logs_from_api(player_id, season, group)
             self._save_to_cache(cache_key, logs)
             return logs
         except Exception as e:
@@ -208,20 +258,25 @@ class MLBDataFetcher:
             return None
 
 
+    @retry_on_api_error(max_retries=3, backoff_factor=2.0)
+    def _fetch_standings_from_api(self, season: int) -> List[Dict]:
+        """Internal method to fetch standings with retry logic."""
+        # statsapi.standings returns a string by default, we want data if possible
+        # statsapi.standings_data() returns structured data
+        return statsapi.standings_data(season=season)
+
     def get_standings(self, season: int = None) -> List[Dict]:
         """Fetch standings for a season."""
         if not season:
             season = datetime.now().year
-            
+
         cache_key = f"standings_{season}"
         cached = self._load_from_cache(cache_key, "standings")
         if cached:
             return cached
-            
+
         try:
-            # statsapi.standings returns a string by default, we want data if possible
-            # statsapi.standings_data() returns structured data
-            standings = statsapi.standings_data(season=season)
+            standings = self._fetch_standings_from_api(season)
             self._save_to_cache(cache_key, standings)
             return standings
         except Exception as e:

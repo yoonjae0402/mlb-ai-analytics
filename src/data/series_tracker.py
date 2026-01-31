@@ -319,26 +319,146 @@ class SeriesTracker:
         game_date: str
     ) -> int:
         """Estimate total series length (usually 3, sometimes 2 or 4)."""
-        # Default to 3 for most series
+        try:
+            # Get all games in this series (past and future)
+            series_games = self._get_series_games(home_team, away_team, game_date)
+
+            # Also check tomorrow for potential continuation
+            tomorrow = self._get_tomorrow_date(game_date)
+            tomorrow_games = self.fetcher.get_schedule(start_date=tomorrow)
+
+            for next_game in tomorrow_games:
+                next_home = next_game.get("home_team")
+                next_away = next_game.get("away_team")
+
+                if {next_home, next_away} == {home_team, away_team}:
+                    # Series continues, add to count
+                    if next_game not in series_games:
+                        series_games.append(next_game)
+
+            # Return actual or estimated length
+            count = len(series_games)
+            if count > 0:
+                return count
+
+        except Exception as e:
+            logger.debug(f"Could not estimate series length: {e}")
+
+        # Default to 3 for most MLB series
         return 3
 
     def _find_series_mvp(self, series_games: list[dict]) -> Optional[dict]:
         """Find the most valuable player of the series."""
-        # TODO: Implement with actual stats aggregation
-        return None
+        if not series_games:
+            return None
+
+        player_stats = {}
+
+        # Aggregate stats across all games in series
+        for game in series_games:
+            box_score = game.get("boxscore", {})
+
+            # Process batters from both teams
+            for team in ["home", "away"]:
+                batters = box_score.get(f"{team}_batters", [])
+                for batter in batters:
+                    player_name = batter.get("name")
+                    if not player_name:
+                        continue
+
+                    if player_name not in player_stats:
+                        player_stats[player_name] = {
+                            "hits": 0,
+                            "home_runs": 0,
+                            "rbi": 0,
+                            "runs": 0,
+                            "at_bats": 0,
+                        }
+
+                    # Accumulate stats
+                    player_stats[player_name]["hits"] += batter.get("hits", 0)
+                    player_stats[player_name]["home_runs"] += batter.get("home_runs", 0)
+                    player_stats[player_name]["rbi"] += batter.get("rbi", 0)
+                    player_stats[player_name]["runs"] += batter.get("runs", 0)
+                    player_stats[player_name]["at_bats"] += batter.get("at_bats", 0)
+
+        if not player_stats:
+            return None
+
+        # Calculate MVP score (weighted combination of stats)
+        def mvp_score(stats):
+            return (
+                stats["hits"] * 1.0 +
+                stats["home_runs"] * 4.0 +
+                stats["rbi"] * 2.0 +
+                stats["runs"] * 1.5
+            )
+
+        # Find player with highest score
+        mvp_name = max(player_stats.keys(), key=lambda p: mvp_score(player_stats[p]))
+        mvp_stats = player_stats[mvp_name]
+
+        # Format stats string
+        avg = mvp_stats["hits"] / mvp_stats["at_bats"] if mvp_stats["at_bats"] > 0 else 0
+        stats_str = (
+            f"{mvp_stats['hits']}-{mvp_stats['at_bats']} "
+            f"({avg:.3f}), "
+            f"{mvp_stats['home_runs']} HR, "
+            f"{mvp_stats['rbi']} RBI"
+        )
+
+        return {
+            "player": mvp_name,
+            "stats": stats_str,
+            "detailed_stats": mvp_stats,
+        }
 
     def _calculate_series_stats(self, series_games: list[dict]) -> dict:
         """Calculate aggregate stats for the series."""
-        total_home_runs = 0
-        total_away_runs = 0
-
-        for game in series_games:
-            total_home_runs += game.get("home_score", 0)
-            total_away_runs += game.get("away_score", 0)
-
-        return {
-            "total_runs": {
-                "home": total_home_runs,
-                "away": total_away_runs,
-            },
+        stats = {
+            "total_runs": {"home": 0, "away": 0},
+            "total_hits": {"home": 0, "away": 0},
+            "total_home_runs": {"home": 0, "away": 0},
+            "total_errors": {"home": 0, "away": 0},
+            "average_score": {"home": 0.0, "away": 0.0},
         }
+
+        if not series_games:
+            return stats
+
+        # Aggregate stats across all games
+        for game in series_games:
+            # Runs (from final score)
+            stats["total_runs"]["home"] += game.get("home_score", 0)
+            stats["total_runs"]["away"] += game.get("away_score", 0)
+
+            # Detailed stats from box score if available
+            box_score = game.get("boxscore", {})
+
+            # Aggregate team batting stats
+            for team in ["home", "away"]:
+                team_stats = box_score.get(f"{team}_team_stats", {})
+                batters = box_score.get(f"{team}_batters", [])
+
+                # Count hits
+                team_hits = team_stats.get("hits", 0)
+                if team_hits == 0 and batters:
+                    # Calculate from individual batters if team total not available
+                    team_hits = sum(b.get("hits", 0) for b in batters)
+
+                stats["total_hits"][team] += team_hits
+
+                # Count home runs
+                team_hrs = sum(b.get("home_runs", 0) for b in batters)
+                stats["total_home_runs"][team] += team_hrs
+
+                # Count errors
+                team_errors = team_stats.get("errors", 0)
+                stats["total_errors"][team] += team_errors
+
+        # Calculate averages
+        num_games = len(series_games)
+        stats["average_score"]["home"] = stats["total_runs"]["home"] / num_games
+        stats["average_score"]["away"] = stats["total_runs"]["away"] / num_games
+
+        return stats

@@ -66,15 +66,44 @@ class VideoAssembler:
             # Header with Logos
             # Hypothetical: Fetch these IDs from game_data
             # For now, we'll assume they are passed or mocked
-            away_logo = self.asset_manager.fetch_team_logo(147) # Yankees placeholder
-            home_logo = self.asset_manager.fetch_team_logo(111) # Red Sox placeholder
-            
-            if away_logo and home_logo:
-                # Place logos at top
-                # Note: SVGs might need conversion to PNG for moviepy depending on version
-                # AssetManager handles download, but we might need a helper to ensure PNG
-                # For this MVP, assumng download works or we skip if fail
-                pass 
+            away_team_id = script_data.get("away_team_id", 147)  # Default Yankees
+            home_team_id = script_data.get("home_team_id", 111)  # Default Red Sox
+
+            away_logo = self.asset_manager.fetch_team_logo(away_team_id)
+            home_logo = self.asset_manager.fetch_team_logo(home_team_id)
+
+            logo_size = 150  # Logo width/height in pixels
+            logo_y = 50  # Distance from top
+
+            if away_logo and os.path.exists(away_logo):
+                try:
+                    # Away team logo on the left
+                    away_logo_clip = (
+                        ImageClip(away_logo)
+                        .set_start(0)
+                        .set_duration(duration)
+                        .resize(width=logo_size)
+                        .set_position((100, logo_y))  # Left side
+                    )
+                    clips.append(away_logo_clip)
+                    logger.debug(f"Added away team logo: {away_logo}")
+                except Exception as e:
+                    logger.warning(f"Failed to add away team logo: {e}")
+
+            if home_logo and os.path.exists(home_logo):
+                try:
+                    # Home team logo on the right
+                    home_logo_clip = (
+                        ImageClip(home_logo)
+                        .set_start(0)
+                        .set_duration(duration)
+                        .resize(width=logo_size)
+                        .set_position((1080 - logo_size - 100, logo_y))  # Right side
+                    )
+                    clips.append(home_logo_clip)
+                    logger.debug(f"Added home team logo: {home_logo}")
+                except Exception as e:
+                    logger.warning(f"Failed to add home team logo: {e}") 
                 
             # Charts Overlay (Middle Section)
             # Show charts from 5s to 20s (Example)

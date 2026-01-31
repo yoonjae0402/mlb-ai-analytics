@@ -19,15 +19,45 @@ class ModelTrainer:
         model: nn.Module,
         learning_rate: float = 0.001,
         device: str = "cpu",
-        checkpoint_dir: str = "./models/checkpoints"
+        checkpoint_dir: str = "./models/checkpoints",
+        max_grad_norm: float = 1.0,
+        use_scheduler: bool = True
     ):
+        """
+        Initialize model trainer.
+
+        Args:
+            model: PyTorch model to train
+            learning_rate: Initial learning rate
+            device: Device to train on ("cpu" or "cuda")
+            checkpoint_dir: Directory to save model checkpoints
+            max_grad_norm: Maximum gradient norm for clipping (0 to disable)
+            use_scheduler: Whether to use learning rate scheduler
+        """
         self.model = model
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
-        
+
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(model.parameters(), lr=learning_rate)
-        
+
+        # Gradient clipping
+        self.max_grad_norm = max_grad_norm
+
+        # Learning rate scheduler (ReduceLROnPlateau)
+        self.use_scheduler = use_scheduler
+        if use_scheduler:
+            self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                self.optimizer,
+                mode='min',
+                factor=0.5,
+                patience=3,
+                verbose=True,
+                min_lr=1e-6
+            )
+        else:
+            self.scheduler = None
+
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
@@ -54,13 +84,21 @@ class ModelTrainer:
             
             for batch_x, batch_y in train_loader:
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
-                
+
                 self.optimizer.zero_grad()
                 logits = self.model(batch_x)
                 loss = self.criterion(logits, batch_y)
                 loss.backward()
+
+                # Gradient clipping to prevent exploding gradients
+                if self.max_grad_norm > 0:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(),
+                        self.max_grad_norm
+                    )
+
                 self.optimizer.step()
-                
+
                 train_loss += loss.item()
                 
             avg_train_loss = train_loss / len(train_loader)
@@ -73,9 +111,15 @@ class ModelTrainer:
             history['train_loss'].append(avg_train_loss)
             history['val_loss'].append(val_loss)
             history['val_acc'].append(val_acc)
-            
-            logger.info(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
-            
+
+            # Learning rate scheduling
+            if self.scheduler:
+                self.scheduler.step(val_loss)
+                current_lr = self.optimizer.param_groups[0]['lr']
+                logger.info(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f} | LR: {current_lr:.6f}")
+            else:
+                logger.info(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
+
             # Checkpointing & Early Stopping
             if val_loss < best_val_loss:
                 best_val_loss = val_loss

@@ -16,20 +16,32 @@ OPENAI_PRICING = {
 
 ELEVENLABS_PRICING = {
     "default": 0.30 / 1000,  # $0.30 per 1K characters
+    "standard": 0.30 / 1000,  # $0.30 per 1K characters (alias)
 }
 
 
 def estimate_openai_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    """Estimate OpenAI API cost for a request."""
-    pricing = OPENAI_PRICING.get(model, OPENAI_PRICING["gpt-4o"])
+    """Estimate OpenAI API cost for a request.
+
+    Returns 0.0 for unknown models.
+    """
+    pricing = OPENAI_PRICING.get(model)
+    if not pricing:
+        return 0.0
     input_cost = input_tokens * pricing["input"]
     output_cost = output_tokens * pricing["output"]
     return input_cost + output_cost
 
 
-def estimate_elevenlabs_cost(characters: int) -> float:
-    """Estimate ElevenLabs TTS cost for character count."""
-    return characters * ELEVENLABS_PRICING["default"]
+def estimate_elevenlabs_cost(characters: int, model: str = "default") -> float:
+    """Estimate ElevenLabs TTS cost for character count.
+
+    Returns 0.0 for unknown models.
+    """
+    pricing = ELEVENLABS_PRICING.get(model)
+    if not pricing:
+        return 0.0
+    return characters * pricing
 
 class CostTracker:
     """

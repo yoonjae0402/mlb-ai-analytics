@@ -41,19 +41,16 @@ class TestScriptGenerator:
         template_dir = tmp_path / "templates"
         template_dir.mkdir()
         (template_dir / "series_middle.txt").write_text("Fallback Template")
-        
-        generator = ScriptGenerator(template_dir=str(template_dir))
-        
-        # Mock API
+
+        # Mock API BEFORE creating generator
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
-        
-        mock_choice = MagicMock()
-        mock_choice.message.content = "Script"
-        mock_response = MagicMock()
-        mock_response.choices = [mock_choice]
-        mock_client.chat.completions.create.return_value = mock_response
-        
+
+        # Configure the mock chain to return "Script" when .strip() is called
+        mock_client.chat.completions.create.return_value.choices[0].message.content.strip.return_value = "Script"
+
+        generator = ScriptGenerator(template_dir=str(template_dir))
+
         # Request non-existent template
         script = generator.generate_script({}, {}, {}, "non_existent")
         

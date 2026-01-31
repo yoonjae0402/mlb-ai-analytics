@@ -9,6 +9,49 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
+class EarlyStopping:
+    """
+    Early stopping to stop training when validation loss doesn't improve.
+
+    Args:
+        patience: Number of epochs with no improvement after which training will be stopped
+        min_delta: Minimum change in monitored value to qualify as an improvement
+    """
+
+    def __init__(self, patience: int = 5, min_delta: float = 0.0):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.best_loss = None
+        self.should_stop = False
+
+    def __call__(self, val_loss: float) -> bool:
+        """
+        Check if training should stop.
+
+        Args:
+            val_loss: Current validation loss
+
+        Returns:
+            True if training should stop, False otherwise
+        """
+        if self.best_loss is None:
+            self.best_loss = val_loss
+            return False
+
+        # Check if there's improvement
+        if val_loss < (self.best_loss - self.min_delta):
+            self.best_loss = val_loss
+            self.counter = 0
+            return False
+        else:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.should_stop = True
+                return True
+            return False
+
 class ModelTrainer:
     """
     Handles the training and validation loop for the MLB Classifier.

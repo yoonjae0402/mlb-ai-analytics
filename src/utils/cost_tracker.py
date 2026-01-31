@@ -7,6 +7,30 @@ from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
+# Pricing constants (as of Jan 2025)
+OPENAI_PRICING = {
+    "gpt-4o": {"input": 2.50 / 1e6, "output": 10.00 / 1e6},
+    "gpt-4o-mini": {"input": 0.15 / 1e6, "output": 0.60 / 1e6},
+    "gpt-3.5-turbo": {"input": 0.50 / 1e6, "output": 1.50 / 1e6},
+}
+
+ELEVENLABS_PRICING = {
+    "default": 0.30 / 1000,  # $0.30 per 1K characters
+}
+
+
+def estimate_openai_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    """Estimate OpenAI API cost for a request."""
+    pricing = OPENAI_PRICING.get(model, OPENAI_PRICING["gpt-4o"])
+    input_cost = input_tokens * pricing["input"]
+    output_cost = output_tokens * pricing["output"]
+    return input_cost + output_cost
+
+
+def estimate_elevenlabs_cost(characters: int) -> float:
+    """Estimate ElevenLabs TTS cost for character count."""
+    return characters * ELEVENLABS_PRICING["default"]
+
 class CostTracker:
     """
     Tracks API costs (OpenAI, DashScope) to a local file.

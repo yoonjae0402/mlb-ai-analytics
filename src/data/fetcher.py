@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union, Any, Callable
 from functools import wraps
 
+from src.utils.exceptions import DataFetchError
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

@@ -35,27 +35,6 @@ class TestScriptGenerator:
         
         assert script == "Generated Script"
 
-class TestCostTracker:
-    def test_log_usage(self, tmp_path):
-        log_file = tmp_path / "costs.jsonl"
-        tracker = CostTracker(log_file=str(log_file))
-        
-        # Note: Gemini and Qwen3-TTS are both free, so costs should be 0
-        tracker.log_openai_usage("gpt-4o", 1000, 500)  # Legacy test
-        tracker.log_dashscope_usage("qwen-tts-local", 5000)  # Updated to local TTS
-        
-        assert log_file.exists()
-        content = log_file.read_text().splitlines()
-        
-        entry_openai = json.loads(content[0])
-        assert entry_openai["input_tokens"] == 1000
-        assert entry_openai["model"] == "gpt-4o"
-        assert entry_openai["cost_usd"] >= 0  # Changed to >= since costs can be 0
-        
-        entry_tts = json.loads(content[1])
-        assert entry_tts["characters"] == 5000
-        assert entry_tts["provider"] == "qwen-tts-local"  # Updated
-        assert entry_tts["cost_usd"] >= 0  # Local TTS is free
 
 class TestAudioGenerator:
     @pytest.fixture

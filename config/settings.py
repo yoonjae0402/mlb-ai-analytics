@@ -61,7 +61,7 @@ class Settings(BaseSettings):
         description="TTS Model ID"
     )
     tts_voice: str = Field(
-        default="longxiaochun",
+        default="aiden",
         description="TTS Voice ID"
     )
     youtube_api_key: Optional[str] = Field(

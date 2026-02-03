@@ -4,6 +4,15 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import ctypes.util
+
+# Ensure Homebrew cairo is discoverable on macOS
+_homebrew_lib = "/opt/homebrew/lib"
+if os.path.isdir(_homebrew_lib) and not ctypes.util.find_library("cairo"):
+    os.environ.setdefault("DYLD_LIBRARY_PATH", _homebrew_lib)
+
+import cairosvg
+
 logger = logging.getLogger(__name__)
 
 class AssetManager:
@@ -22,16 +31,26 @@ class AssetManager:
             
     def fetch_team_logo(self, team_id: int) -> Optional[str]:
         """
-        Fetch team logo from MLB static CDN.
+        Fetch team logo from MLB static CDN and convert SVG to PNG.
         """
-        filename = f"{team_id}.svg" # SVGs are scalable, better for video overlay
-        output_path = self.logos_dir / filename
-        
-        if output_path.exists():
-            return str(output_path)
-            
+        png_path = self.logos_dir / f"{team_id}.png"
+
+        if png_path.exists():
+            return str(png_path)
+
         url = f"https://www.mlbstatic.com/team-logos/team-cap-on-light/{team_id}.svg"
-        return self._download_file(url, output_path)
+        svg_path = self.logos_dir / f"{team_id}.svg"
+        result = self._download_file(url, svg_path)
+        if not result:
+            return None
+
+        try:
+            cairosvg.svg2png(url=str(svg_path), write_to=str(png_path), output_width=200, output_height=200)
+            svg_path.unlink(missing_ok=True)
+            return str(png_path)
+        except Exception as e:
+            logger.error(f"Failed to convert SVG to PNG: {e}")
+            return None
 
     def fetch_player_headshot(self, player_id: int) -> Optional[str]:
         """

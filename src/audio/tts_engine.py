@@ -34,7 +34,7 @@ class TTSEngine:
     """
 
     DEFAULT_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"  # Smaller model for better compatibility
-    DEFAULT_VOICE = "longxiaochun"
+    DEFAULT_VOICE = "aiden"
 
     def __init__(
         self,
@@ -109,10 +109,12 @@ class TTSEngine:
         
         # Fallback if model not loaded or no speakers listed
         return [
-            {"voice_id": "longxiaochun", "name": "Long Xiaochun (Female)", "language": "Chinese/English"},
-            {"voice_id": "longwan", "name": "Long Wan (Male)", "language": "Chinese/English"},
-            {"voice_id": "longcheng", "name": "Long Cheng (Male)", "language": "Chinese/English"},
-            {"voice_id": "longhua", "name": "Long Hua (Female)", "language": "Chinese/English"},
+            {"voice_id": "aiden", "name": "Aiden", "language": "Multilingual"},
+            {"voice_id": "dylan", "name": "Dylan", "language": "Multilingual"},
+            {"voice_id": "eric", "name": "Eric", "language": "Multilingual"},
+            {"voice_id": "ryan", "name": "Ryan", "language": "Multilingual"},
+            {"voice_id": "serena", "name": "Serena", "language": "Multilingual"},
+            {"voice_id": "vivian", "name": "Vivian", "language": "Multilingual"},
         ]
 
     def set_voice(self, voice_id: str) -> None:

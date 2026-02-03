@@ -18,10 +18,6 @@ class ScriptGenerator:
         if not self.api_key:
             logger.warning("GEMINI_API_KEY not found in environment variables.")
         
-        # Configure Gemini
-        genai.configure(api_key=self.api_key)
-        
-        # Use Gemini 2.0 Flash for best speed/quality balance
         self.client = genai.Client(api_key=self.api_key)
         self.template_dir = Path(template_dir)
         
@@ -51,7 +47,7 @@ class ScriptGenerator:
             
             # Generate content with Gemini
             response = self.client.models.generate_content(
-                model='gemini-2.0-flash-exp',
+                model='gemini-2.0-flash',
                 contents=prompt,
                 config=genai.types.GenerateContentConfig(
                     temperature=0.7,

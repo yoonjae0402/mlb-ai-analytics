@@ -5,8 +5,7 @@ Welcome! This guide will help you generate your first automated MLB video in und
 ## Prerequisites
 
 - Python 3.11 or higher
-- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
-- ElevenLabs API key ([Get one here](https://elevenlabs.io))
+- Gemini API key ([Get one here](https://aistudio.google.com/app/apikey))
 - macOS, Linux, or Windows with WSL
 
 ## Step 1: Setup (5 minutes)
@@ -35,12 +34,12 @@ cp .env.example .env
 nano .env  # or: code .env, vim .env, etc.
 ```
 
-Add your API keys:
+Add your API key:
 ```bash
-OPENAI_API_KEY=sk-proj-...your-key-here...
-ELEVENLABS_API_KEY=...your-key-here...
-ELEVENLABS_VOICE_ID=...your-voice-id...
+GEMINI_API_KEY=...your-key-here...
 ```
+
+Note: Audio uses local Qwen3-TTS (no API key needed!)
 
 Save and exit (Ctrl+X, then Y, then Enter in nano).
 
@@ -71,11 +70,11 @@ python main.py --team Yankees
 2026-02-03 00:15:12 - INFO - Step 3: Analyzing game...
 2026-02-03 00:15:14 - INFO - Step 4: Generating prediction...
 2026-02-03 00:15:16 - INFO - Step 5: Generating script...
-2026-02-03 00:15:30 - INFO - Step 6: Generating audio...
+2026-02-03 00:15:30 - INFO - Step 6: Generating audio (local TTS)...
 2026-02-03 00:15:40 - INFO - Step 7: Generating charts...
 2026-02-03 00:15:45 - INFO - Step 8: Assembling video...
 2026-02-03 00:16:15 - INFO - ✅ Pipeline completed successfully!
-2026-02-03 00:16:15 - INFO - Total API cost: $0.0450
+2026-02-03 00:16:15 - INFO - Total API cost: $0.0050
 ```
 
 ### 2.2 Find Your Video
@@ -120,7 +119,7 @@ Your browser will automatically open to `http://localhost:8501`
 ### 3.3 Explore the Dashboard
 
 - **Overview**: See your recent video generation
-- **Cost Analysis**: Check how much you spent ($0.03-0.08 typical)
+- **Cost Analysis**: Check how much you spent (~$0.001-0.01 typical)
 - **Performance**: View processing time
 - **Video Gallery**: Preview your video in the browser
 
@@ -131,15 +130,15 @@ Your pipeline just:
 1. ✅ Fetched yesterday's Yankees game data from MLB API
 2. ✅ Analyzed the game for key insights
 3. ✅ Generated an AI prediction for the next game
-4. ✅ Created a 60-second script using GPT-4o
-5. ✅ Synthesized professional voiceover with ElevenLabs
+4. ✅ Created a 60-second script using Gemini 2.0 Flash
+5. ✅ Synthesized professional voiceover with Qwen3-TTS (local, free)
 6. ✅ Generated trend charts showing player stats
 7. ✅ Assembled a vertical video (1080x1920) optimized for TikTok/Shorts
 8. ✅ Logged metrics and costs
 9. ✅ Saved the final video to `outputs/videos/`
 
 **Total time:** ~60-120 seconds  
-**Total cost:** ~$0.03-0.08
+**Total cost:** ~$0.001-0.01
 
 ## Next Steps
 
@@ -190,12 +189,13 @@ python main.py --date 2024-07-04 --team Yankees
 
 ### "Audio generation failed"
 
-**Problem:** ElevenLabs API key issue or quota exceeded.
+**Problem:** Qwen3-TTS model loading issue.
 
 **Solution:**
-1. Verify your API key in `.env`
-2. Check your quota at [elevenlabs.io](https://elevenlabs.io)
+1. Check if you have enough disk space (model is ~2GB)
+2. Verify Python version is 3.11+
 3. View detailed error in `logs/pipeline.log`
+4. Try reinstalling: `pip install qwen-tts --force-reinstall`
 
 ### "ModuleNotFoundError"
 
@@ -209,16 +209,17 @@ source mlb-env/bin/activate
 ## Understanding Costs
 
 ### Per Video
-- OpenAI (GPT-4o): $0.02 - $0.05
-- ElevenLabs (TTS): $0.01 - $0.03
-- **Total: $0.03 - $0.08**
+- Gemini 2.0 Flash: ~$0.001 - $0.01
+- Qwen3-TTS (local): $0.00 (free!)
+- **Total: ~$0.001 - $0.01**
 
 ### Monthly (30 videos)
-- **Total: $0.90 - $2.40**
+- **Total: ~$0.03 - $0.30**
 
-### Free Tier Limits
-- OpenAI: $5 free credit for new accounts
-- ElevenLabs: 10,000 characters/month free
+### Cost Savings
+- ~90% cheaper than OpenAI + ElevenLabs
+- Audio is completely free (local processing)
+- Check Gemini pricing: [ai.google.dev/pricing](https://ai.google.dev/pricing)
 
 ## Documentation
 

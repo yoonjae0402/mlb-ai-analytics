@@ -98,15 +98,15 @@ class ScriptGenerator:
             "key_insight": key_insight,
             "top_performer": top_perf.get("player"),
             "performer_impact": top_perf.get("highlight"),
-            "game_number": "2", # Placeholder, would come from SeriesTracker
-            "series_status": "Series tied 1-1", # Placeholder
+            "game_number": "1",
+            "series_status": game_data.get("series_status", ""),
             "prediction_class": prediction.get("prediction", "Unknown"),
             "confidence": prediction.get("confidence", "Low"),
             "prediction_reasons": ", ".join(prediction.get("reasons", [])),
-            
+
             # Extra fields for series_end
-            "series_summary": "Yankees take 2 of 3",
-            "next_series_opponent": "Red Sox"
+            "series_summary": game_data.get("series_status", ""),
+            "next_series_opponent": game_data.get("home_team", "TBD")
         }
         
         return template.format(**context)

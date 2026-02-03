@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use("Agg")  # non-interactive backend, safe for worker threads
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd

@@ -82,7 +82,21 @@ class PipelineOrchestrator:
                 return None
             
             game_data = self.fetcher.get_game_data(game['game_id'])
-            
+
+            # Merge schedule-level fields into game_data so downstream
+            # components (script generator, video assembler) have real
+            # team names, IDs, scores, and series status.
+            game_data.update({
+                "away_team": game.get("away_name", "Away Team"),
+                "home_team": game.get("home_name", "Home Team"),
+                "away_team_id": game.get("away_id"),
+                "home_team_id": game.get("home_id"),
+                "away_score": game.get("away_score", 0),
+                "home_score": game.get("home_score", 0),
+                "date": game.get("game_date", date),
+                "series_status": game.get("series_status", ""),
+            })
+
             # Step 2: Determine Video Type
             logger.info("Step 2: Determining video type...")
             video_type = self.series_tracker.get_video_type(game_data)
@@ -155,7 +169,11 @@ class PipelineOrchestrator:
             # Step 8: Assemble Video
             logger.info("Step 8: Assembling video...")
             video_path = self.video_assembler.assemble_video(
-                script_data={"prediction": prediction},
+                script_data={
+                    "prediction": prediction,
+                    "away_team_id": game_data.get("away_team_id", 147),
+                    "home_team_id": game_data.get("home_team_id", 111),
+                },
                 audio_path=audio_file,
                 charts=charts,
                 output_filename=f"{date}_{team_name}.mp4"

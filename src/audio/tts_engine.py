@@ -34,7 +34,7 @@ class TTSEngine:
     """
 
     DEFAULT_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"  # Smaller model for better compatibility
-    DEFAULT_VOICE = "aiden"
+    DEFAULT_VOICE = "eric"
 
     def __init__(
         self,

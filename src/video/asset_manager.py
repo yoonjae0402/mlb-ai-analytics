@@ -4,12 +4,20 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import sys
 import ctypes.util
 
-# Ensure Homebrew cairo is discoverable on macOS
-_homebrew_lib = "/opt/homebrew/lib"
-if os.path.isdir(_homebrew_lib) and not ctypes.util.find_library("cairo"):
-    os.environ.setdefault("DYLD_LIBRARY_PATH", _homebrew_lib)
+# Ensure cairo shared library is discoverable across platforms
+if not ctypes.util.find_library("cairo"):
+    _lib_candidates = (
+        ["/opt/homebrew/lib", "/usr/local/lib"] if sys.platform == "darwin"
+        else ["/usr/lib", "/usr/lib/x86_64-linux-gnu", "/usr/lib/aarch64-linux-gnu"]
+    )
+    for _path in _lib_candidates:
+        if os.path.isdir(_path):
+            os.environ["DYLD_LIBRARY_PATH"] = _path
+            os.environ["LD_LIBRARY_PATH"] = _path
+            break
 
 import cairosvg
 

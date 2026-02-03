@@ -17,3 +17,4 @@ INSTRUCTIONS:
 
 TONE: Narrative, wrapping up one story and starting another.
 FORMAT: Plain text, spoken word only.
+STRICT LIMIT: 80 words maximum. This is a YouTube Shorts video — every word counts. Do NOT exceed 80 words.

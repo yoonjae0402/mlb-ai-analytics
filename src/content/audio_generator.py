@@ -8,20 +8,33 @@ from src.utils.cost_tracker import CostTracker
 
 logger = logging.getLogger(__name__)
 
+# Shorts videos should be under 60s.  At ~150 WPM, 80 words ≈ 32s of speech.
+MAX_SCRIPT_WORDS = 80
+
+
 class AudioGenerator:
     """
     Generates audio from text using TTSEngine (DashScope).
     """
-    
+
     def __init__(self, cost_tracker: Optional[CostTracker] = None):
         try:
             self.engine = TTSEngine()
         except Exception as e:
             logger.warning(f"TTSEngine initialization failed: {e}")
             self.engine = None
-            
+
         self.cost_tracker = cost_tracker or CostTracker()
-        
+
+    @staticmethod
+    def _truncate(text: str, max_words: int = MAX_SCRIPT_WORDS) -> str:
+        """Hard-cap the script to *max_words* words so TTS stays short."""
+        words = text.split()
+        if len(words) <= max_words:
+            return text
+        logger.warning(f"Script too long ({len(words)} words), truncating to {max_words}")
+        return " ".join(words[:max_words])
+
     def generate_audio(self, text: str, output_path: str) -> Optional[str]:
         """
         Synthesize speech from text.
@@ -29,9 +42,10 @@ class AudioGenerator:
         if not self.engine:
             logger.error("TTS Engine not initialized.")
             return None
-            
+
         try:
-            logger.info(f"Generating audio for: '{text[:30]}...'")
+            text = self._truncate(text)
+            logger.info(f"Generating audio for: '{text[:30]}...' ({len(text.split())} words)")
             
             # Generate using TTSEngine
             # TTSEngine generates a hash-based filename by default, so we might need to move it

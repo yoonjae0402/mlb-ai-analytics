@@ -18,3 +18,4 @@ INSTRUCTIONS:
 
 TONE: Professional but hype. Fast-paced.
 FORMAT: Plain text, no scene directions, spoken word only.
+STRICT LIMIT: 80 words maximum. This is a YouTube Shorts video — every word counts. Do NOT exceed 80 words.

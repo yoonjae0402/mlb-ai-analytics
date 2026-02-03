@@ -62,37 +62,57 @@ class TTSEngine:
         self.output_dir = output_dir or settings.audio_output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Device selection: prefer CUDA > CPU (skip MPS due to memory issues)
-        if device:
-            self.device = device
-        elif torch.cuda.is_available():
-            self.device = "cuda"
-        else:
-            # Use CPU for stability (MPS can have memory issues with large models)
-            self.device = "cpu"
-        
+        # Device selection: prefer CUDA > MPS > CPU
+        self.device = self._select_device(device)
+
         logger.info(f"Initializing Qwen3-TTS with model: {self.model_id} on {self.device}")
-        
-        try:
-            self.model = Qwen3TTSModel.from_pretrained(
-                self.model_id,
-                device_map=self.device
-            )
-            # Verify voice support
-            supported = self.model.get_supported_speakers()
-            if supported:
-                logger.info(f"Supported voices: {supported}")
-                if self.voice.lower() not in [s.lower() for s in supported]:
-                    logger.warning(f"Voice '{self.voice}' not found in supported speakers. Using default '{supported[0]}'")
-                    self.voice = supported[0]
-            
-            logger.info("Qwen3-TTS model loaded successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to load Qwen3-TTS model: {e}")
-            raise
+
+        self.model = self._load_model()
+
+        # Verify voice support
+        supported = self.model.get_supported_speakers()
+        if supported:
+            logger.info(f"Supported voices: {supported}")
+            if self.voice.lower() not in [s.lower() for s in supported]:
+                logger.warning(f"Voice '{self.voice}' not found in supported speakers. Using default '{supported[0]}'")
+                self.voice = supported[0]
+
+        logger.info(f"Qwen3-TTS model loaded successfully on {self.device}")
 
         self.cost_tracker = get_cost_tracker()
+
+    # =========================================================================
+    # Device & Model Helpers
+    # =========================================================================
+
+    @staticmethod
+    def _select_device(override: str | None) -> str:
+        """Pick the best available accelerator."""
+        if override:
+            return override
+        if torch.cuda.is_available():
+            return "cuda"
+        if torch.backends.mps.is_available():
+            return "mps"
+        return "cpu"
+
+    def _load_model(self):
+        """Load the TTS model, falling back to CPU if GPU fails."""
+        try:
+            model = Qwen3TTSModel.from_pretrained(
+                self.model_id,
+                device_map=self.device,
+            )
+            return model
+        except Exception as e:
+            if self.device != "cpu":
+                logger.warning(f"Failed to load model on {self.device}: {e}. Falling back to CPU.")
+                self.device = "cpu"
+                return Qwen3TTSModel.from_pretrained(
+                    self.model_id,
+                    device_map="cpu",
+                )
+            raise
 
     # =========================================================================
     # Voice Management

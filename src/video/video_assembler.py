@@ -1,9 +1,11 @@
 import logging
 import os
+import platform
+import shutil
 from pathlib import Path
 from typing import List, Dict, Optional
 from moviepy.editor import (
-    VideoFileClip, AudioFileClip, ImageClip, CompositeVideoClip, 
+    VideoFileClip, AudioFileClip, ImageClip, CompositeVideoClip,
     TextClip, ColorClip, vfx
 )
 from PIL import Image, ImageDraw, ImageFont
@@ -26,6 +28,18 @@ class VideoAssembler:
         self.asset_manager = asset_manager
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._hw_encoder = self._detect_hw_encoder()
+
+    @staticmethod
+    def _detect_hw_encoder() -> Optional[str]:
+        """Detect if a hardware H.264 encoder is available."""
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            return None
+        if platform.system() == "Darwin":
+            # macOS VideoToolbox — typically 5-10x faster than software libx264
+            return "h264_videotoolbox"
+        return None
         
     def assemble_video(
         self,
@@ -147,15 +161,24 @@ class VideoAssembler:
             final_video = final_video.set_audio(audio_clip)
             final_video = final_video.set_duration(duration)
             
-            # 5. Write
-            # low fps for speed in dev, use 30/60 for prod
+            # 5. Write — use hardware encoder when available, ultrafast preset otherwise
+            codec = self._hw_encoder or "libx264"
+            ffmpeg_params = ["-threads", "0"]  # let ffmpeg use all cores
+            if codec == "libx264":
+                ffmpeg_params += ["-preset", "ultrafast", "-crf", "23"]
+            elif codec == "h264_videotoolbox":
+                # VideoToolbox handles quality via bitrate; ~4 Mbps is fine for 1080x1920
+                ffmpeg_params += ["-b:v", "4M"]
+
+            logger.info(f"Encoding with codec={codec}")
             final_video.write_videofile(
-                str(output_path), 
-                fps=24, 
-                codec="libx264", 
+                str(output_path),
+                fps=24,
+                codec=codec,
                 audio_codec="aac",
                 threads=4,
-                logger=None # Silence verbose ffmpeg logs
+                ffmpeg_params=ffmpeg_params,
+                logger=None,
             )
             
             return str(output_path)

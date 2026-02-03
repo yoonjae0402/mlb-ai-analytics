@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Optional, Dict, Any
 from pathlib import Path
@@ -107,31 +108,50 @@ class PipelineOrchestrator:
                 prediction=prediction,
                 video_type=video_type
             )
-            
-            # Step 6: Generate Audio
-            logger.info("Step 6: Generating audio...")
-            audio_path = f"outputs/audio/{date}_{team_name}.mp3"
-            audio_file = self.audio_generator.generate_audio(script, audio_path)
-            
+
+            # Steps 6-7: Run audio, charts, and asset prefetch in parallel
+            logger.info("Steps 6-7: Generating audio, charts, and prefetching assets in parallel...")
+            audio_file = None
+            charts = []
+
+            def _generate_audio():
+                audio_path = f"outputs/audio/{date}_{team_name}.mp3"
+                return self.audio_generator.generate_audio(script, audio_path)
+
+            def _generate_charts():
+                result = []
+                trend_path = self.chart_generator.generate_trend_chart(
+                    data=[0.250, 0.260, 0.280, 0.290, 0.310],
+                    labels=["G1", "G2", "G3", "G4", "G5"],
+                    title="Last 5 Games Batting Average",
+                    filename=f"{date}_trend.png"
+                )
+                if trend_path:
+                    result.append(trend_path)
+                return result
+
+            def _prefetch_assets():
+                """Pre-download team logos so video assembly doesn't block on network."""
+                away_id = game_data.get("away_team_id", 147)
+                home_id = game_data.get("home_team_id", 111)
+                self.asset_manager.fetch_team_logo(away_id)
+                self.asset_manager.fetch_team_logo(home_id)
+
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                fut_audio = pool.submit(_generate_audio)
+                fut_charts = pool.submit(_generate_charts)
+                fut_assets = pool.submit(_prefetch_assets)
+
+                # Wait for all to complete
+                audio_file = fut_audio.result()
+                charts = fut_charts.result()
+                fut_assets.result()  # just ensure it finished
+
             if not audio_file:
                 logger.error("Audio generation failed")
                 error_msg = "Audio generation failed"
                 return None
-            
-            # Step 7: Generate Charts
-            logger.info("Step 7: Generating charts...")
-            charts = []
-            
-            # Example trend chart
-            trend_path = self.chart_generator.generate_trend_chart(
-                data=[0.250, 0.260, 0.280, 0.290, 0.310],
-                labels=["G1", "G2", "G3", "G4", "G5"],
-                title="Last 5 Games Batting Average",
-                filename=f"{date}_trend.png"
-            )
-            if trend_path:
-                charts.append(trend_path)
-            
+
             # Step 8: Assemble Video
             logger.info("Step 8: Assembling video...")
             video_path = self.video_assembler.assemble_video(

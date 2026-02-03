@@ -51,7 +51,7 @@ class ScriptGenerator:
                 contents=prompt,
                 config=genai.types.GenerateContentConfig(
                     temperature=0.7,
-                    max_output_tokens=300,
+                    max_output_tokens=150,
                 )
             )
             

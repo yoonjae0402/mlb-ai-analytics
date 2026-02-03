@@ -37,9 +37,12 @@ nano .env  # or: code .env, vim .env, etc.
 Add your API key:
 ```bash
 GEMINI_API_KEY=...your-key-here...
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/credentials.json
 ```
 
-Note: Audio uses local Qwen3-TTS (no API key needed!)
+Note: 
+- Google Cloud TTS is used for premium audio (ensure `credentials.json` is valid).
+- If not configured, it falls back to local Qwen3-TTS (free).
 
 Save and exit (Ctrl+X, then Y, then Enter in nano).
 
@@ -210,8 +213,8 @@ source mlb-env/bin/activate
 
 ### Per Video
 - Gemini 2.0 Flash: ~$0.001 - $0.01
-- Qwen3-TTS (local): $0.00 (free!)
-- **Total: ~$0.001 - $0.01**
+- Google Cloud TTS: ~$0.01 - $0.02 (cached for re-runs)
+- **Total: ~$0.02 - $0.03**
 
 ### Monthly (30 videos)
 - **Total: ~$0.03 - $0.30**

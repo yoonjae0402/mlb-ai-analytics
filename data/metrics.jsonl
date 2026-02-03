@@ -1,2 +1,7 @@
 {"timestamp": "2026-02-03T01:54:43.167400", "date": "2025-07-04", "team": "Yankees", "success": true, "duration": 248.00545287132263, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": null}
 {"timestamp": "2026-02-03T02:04:44.269757", "date": "2025-07-04", "team": "Yankees", "success": true, "duration": 314.08149695396423, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": null}
+{"timestamp": "2026-02-03T12:58:41.001600", "date": "2024-07-04", "team": "Yankees", "success": true, "duration": 0.2991931438446045, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": null}
+{"timestamp": "2026-02-03T12:58:41.005350", "date": "2024-07-04", "team": "Yankees", "success": false, "duration": 6.508827209472656e-05, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": "No games found"}
+{"timestamp": "2026-02-03T13:18:25.103797", "date": "2026-02-02", "team": "Yankees", "success": false, "duration": 0.24866104125976562, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": "No games found"}
+{"timestamp": "2026-02-03T13:24:27.329019", "date": "2024-06-15", "team": "Yankees", "success": true, "duration": 320.43712520599365, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": null}
+{"timestamp": "2026-02-03T13:31:53.227937", "date": "2024-06-15", "team": "Yankees", "success": false, "duration": 288.2901039123535, "costs": {"gemini": 0, "nano_banana": 0, "audio": 0, "total": 0}, "error": "Cinematic video rendering failed"}

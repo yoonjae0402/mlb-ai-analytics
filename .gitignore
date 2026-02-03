@@ -55,16 +55,14 @@ models/training_data/*.parquet
 !models/.gitkeep
 
 # =============================================================================
-# Output Files (Generated)
+# Output Files
 # =============================================================================
-outputs/videos/*.mp4
-outputs/videos/*.avi
-outputs/videos/*.mov
-outputs/audio/*.mp3
-outputs/audio/*.wav
-outputs/scripts/*.txt
-outputs/thumbnails/*.png
-outputs/thumbnails/*.jpg
+outputs/videos/*
+outputs/audio/*
+outputs/scripts/*
+outputs/thumbnails/*
+outputs/images/*
+!outputs/**/.gitkeep
 
 # =============================================================================
 # Logs

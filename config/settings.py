@@ -144,6 +144,27 @@ class Settings(BaseSettings):
     )
 
     # =========================================================================
+    # Google Cloud TTS
+    # =========================================================================
+
+    google_application_credentials: Optional[str] = Field(
+        default=None,
+        description="Path to Google Cloud Service Account JSON"
+    )
+    google_tts_voice: str = Field(
+        default="en-US-Neural2-J",
+        description="Google TTS Voice ID"
+    )
+    google_tts_daily_limit: int = Field(
+        default=300000,
+        description="Max characters per day for Google TTS"
+    )
+    enable_tts_cache: bool = Field(
+        default=True,
+        description="Enable local caching for TTS audio"
+    )
+
+    # =========================================================================
     # Video Settings
     # =========================================================================
 

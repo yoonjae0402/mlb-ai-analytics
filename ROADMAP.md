@@ -49,3 +49,16 @@ Detect end of MLB games via API and instantly generate cinematic video recaps us
 ## Phase 5: Optimization
 - [x] **Latency Reduction**: Parallelize Image Generation (5 images at once via ThreadPoolExecutor).
 - [x] **Cost Tracking**: Monitor Nano Banana and Gemini usage via upgraded CostTracker.
+
+## Phase 6: Audio Modernization (Google Cloud TTS)
+**Objective**: Replace slow local Qwen3-TTS with ultra-fast, high-quality Google Cloud TTS while maintaining cost control.
+- [ ] **Google Cloud Integration**:
+    - Build `GoogleTTSGenerator` with Neural2/Standard voice support.
+    - Implement robust error handling and retries.
+- [ ] **Smart Caching System**:
+    - Hash-based caching (Text + Voice ID) to eliminate 50%+ of calls.
+    - Automatic expiration (90 days) to manage disk space.
+- [ ] **Cost Control**:
+    - Daily/Monthly usage limits (e.g., $2.00/month cap).
+    - Detailed CSV reporting for audit.
+

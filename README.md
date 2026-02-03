@@ -7,11 +7,11 @@ Fully automated system for generating baseball analysis videos from MLB game dat
 - **Data Collection**: Fetch game data, player stats, and standings from MLB Stats API
 - **ML Predictions**: PyTorch LSTM models for player performance predictions
 - **AI Scripts**: Gemini 2.0 Flash powered script generation
-- **Natural TTS**: Qwen3-TTS (local, free) for professional voiceover
+- **Natural TTS**: Google Cloud TTS (Neural2) with local Qwen3 fallback
 - **Video Generation**: Automated video creation with stats, charts, and graphics
 - **YouTube Upload**: Direct upload to YouTube with metadata
 - **Monitoring**: Streamlit dashboard with email alerts
-- **Cost Effective**: Local processing + efficient API usage
+- **Cost Effective**: Smart caching + local fallback integration
 
 ## Quick Start
 
@@ -38,10 +38,11 @@ cp .env.example .env
 
 Required API keys:
 - **Gemini**: Get from [Google AI Studio](https://aistudio.google.com/app/apikey)
+- **Google Cloud TTS**: Enable Text-to-Speech API and download `credentials.json`
 - **YouTube** (optional): From [Google Cloud Console](https://console.cloud.google.com/)
 
 Note: 
-- TTS uses local Qwen3-TTS (no API key required, completely free)
+- TTS uses Google Cloud (Neural2) by default, falling back to local Qwen3-TTS (free) if limits reached.
 - Gemini API may incur costs depending on usage (check [pricing](https://ai.google.dev/pricing))
 
 ### 3. Run Tests
@@ -86,10 +87,8 @@ mlb-video-pipeline/
 │   ├── upload/              # YouTube upload
 │   └── utils/               # Logging, validation
 ├── scripts/                 # CLI tools
-│   ├── fetch_games.py       # Fetch MLB data
-│   ├── train_model.py       # Train prediction model
-│   ├── generate_video.py    # Create videos
-│   └── test_pipeline.py     # Run tests
+│   ├── migrate_to_google_tts.py # Verification script for Google TTS
+│   └── train_model.py       # Train prediction model
 ├── outputs/                 # Generated content
 │   ├── scripts/             # Text scripts
 │   ├── audio/               # MP3 narration
@@ -164,23 +163,24 @@ model.save("models/player_predictor.pth")
 ## CLI Commands
 
 ```bash
-# Fetch games
-python scripts/fetch_games.py --date 2024-07-04
-python scripts/fetch_games.py --team NYY --date 2024-07-04
-python scripts/fetch_games.py --start 2024-07-01 --end 2024-07-07
+```bash
+# Fetch games (via main pipeline or verify script)
+python main.py --date 2024-07-04 --team Yankees --dry-run
+# Or use python -m src.data.mlb_fetcher if available as module
 
 # Train model
 python scripts/train_model.py --epochs 100 --learning-rate 0.001
 
 # Generate video
-python scripts/generate_video.py --date 2024-07-04
-python scripts/generate_video.py --game-id 12345 --template classic_baseball
-python scripts/generate_video.py --type player_spotlight --dry-run
+python main.py --date 2024-07-04 --team Yankees
+python main.py --date 2024-07-04 --team Yankees --cinematic
+python main.py --date 2024-07-04 --team Yankees --upload
 
 # Run tests
-python scripts/test_pipeline.py
-python scripts/test_pipeline.py --component data
 pytest tests/ -v
+# Verify Google TTS
+python scripts/migrate_to_google_tts.py
+```
 ```
 
 ## Dashboard

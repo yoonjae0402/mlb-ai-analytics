@@ -8,8 +8,8 @@ import time
 from src.data import MLBDataFetcher, SeriesTracker, PredictionDataProcessor
 from src.analysis import MLBStatsAnalyzer
 from src.models import PlayerPerformanceLSTM, PredictionExplainer
-from src.content import ScriptGenerator, AudioGenerator
-from src.video import AssetManager, ChartGenerator, VideoAssembler
+from src.content import ScriptGenerator, AudioGenerator, ImageGenerator
+from src.video import AssetManager, ChartGenerator, VideoAssembler, CinematicEngine
 from src.utils import CostTracker, MetricsCollector, AlertManager
 
 logger = logging.getLogger(__name__)
@@ -40,11 +40,15 @@ class PipelineOrchestrator:
         self.asset_manager = AssetManager()
         self.chart_generator = ChartGenerator()
         self.video_assembler = VideoAssembler(self.asset_manager)
-        
+
+        # Cinematic pipeline components
+        self.image_generator = ImageGenerator()
+        self.cinematic_engine = CinematicEngine()
+
         # Monitoring components
         self.metrics = MetricsCollector()
         self.alerts = AlertManager()
-        
+
         logger.info("Pipeline initialized successfully.")
     
     def run_for_date(self, date: str, team_name: str = "Yankees") -> Optional[str]:
@@ -228,6 +232,195 @@ class PipelineOrchestrator:
                 error=error_msg
             )
     
+    def run_cinematic_for_date(self, date: str, team_name: str = "Yankees") -> Optional[str]:
+        """
+        Run the cinematic pipeline for a specific date and team.
+
+        Uses AI-generated images with Ken Burns motion effects instead of
+        chart overlays and static backgrounds.
+
+        Args:
+            date: Date in YYYY-MM-DD format
+            team_name: Team to generate video for
+
+        Returns:
+            Path to generated video, or None if failed.
+            Also stores the cinematic script in self._last_cinematic_script
+            so main.py can access video_metadata for YouTube upload.
+        """
+        start_time = time.time()
+        success = False
+        error_msg = None
+        self._last_cinematic_script = None
+
+        try:
+            logger.info(f"Starting cinematic pipeline for {team_name} on {date}")
+
+            # Step 1: Fetch Game Data
+            logger.info("Step 1: Fetching game data...")
+            games = self.fetcher.get_schedule(start_date=date, end_date=date)
+
+            if not games:
+                logger.warning(f"No games found for {date}")
+                error_msg = "No games found"
+                return None
+
+            game = self._find_team_game(games, team_name)
+            if not game:
+                logger.warning(f"No game found for {team_name} on {date}")
+                error_msg = f"No game found for {team_name}"
+                return None
+
+            game_data = self.fetcher.get_game_data(game['game_id'])
+
+            game_data.update({
+                "away_team": game.get("away_name", "Away Team"),
+                "home_team": game.get("home_name", "Home Team"),
+                "away_team_id": game.get("away_id"),
+                "home_team_id": game.get("home_id"),
+                "away_score": game.get("away_score", 0),
+                "home_score": game.get("home_score", 0),
+                "date": game.get("game_date", date),
+                "series_status": game.get("series_status", ""),
+            })
+
+            # Step 2: Determine Video Type
+            logger.info("Step 2: Determining video type...")
+            video_type = self.series_tracker.get_video_type(game_data)
+
+            # Step 3: Analyze Game
+            logger.info("Step 3: Analyzing game...")
+            analysis = self.analyzer.analyze_game(game_data)
+
+            # Step 4: Generate Prediction
+            logger.info("Step 4: Generating prediction...")
+            prediction = {
+                "prediction": "Above Average",
+                "confidence": "High",
+                "reasons": ["Strong recent form", "Favorable matchup"]
+            }
+
+            # Step 5: Generate Cinematic Script (JSON)
+            logger.info("Step 5: Generating cinematic script...")
+            script = self.script_generator.generate_cinematic_script(
+                game_data=game_data,
+                analysis=analysis,
+                prediction=prediction,
+                video_type=video_type,
+            )
+            self._last_cinematic_script = script
+
+            scenes = script.get("scenes", [])
+            if not scenes:
+                logger.error("Cinematic script has no scenes")
+                error_msg = "No scenes in cinematic script"
+                return None
+
+            # Step 6: Parallel generation of audio + images
+            logger.info("Step 6: Generating scene audio and images in parallel...")
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                fut_audio = pool.submit(
+                    self._generate_scene_audio, scenes, date, team_name
+                )
+                fut_images = pool.submit(
+                    self.image_generator.generate_scene_images, scenes
+                )
+
+                scene_audio = fut_audio.result()
+                scene_images = fut_images.result()
+
+            if not scene_audio:
+                logger.error("Scene audio generation failed")
+                error_msg = "Scene audio generation failed"
+                return None
+
+            # Step 7: Render cinematic video
+            logger.info("Step 7: Rendering cinematic video...")
+            video_path = self.cinematic_engine.render_video(
+                script=script,
+                scene_images=scene_images,
+                scene_audio_paths=scene_audio,
+                output_filename=f"{date}_{team_name}_cinematic.mp4",
+            )
+
+            if video_path:
+                logger.info(f"Cinematic pipeline completed! Video: {video_path}")
+                success = True
+
+                total_cost = self.cost_tracker.get_total_cost()
+                logger.info(f"Total API cost: ${total_cost:.4f}")
+                self.alerts.check_cost_threshold(total_cost, threshold=1.00)
+
+                return video_path
+            else:
+                logger.error("Cinematic video rendering failed")
+                error_msg = "Cinematic video rendering failed"
+                return None
+
+        except Exception as e:
+            logger.error(f"Cinematic pipeline failed: {e}")
+            error_msg = str(e)
+            import traceback
+            traceback.print_exc()
+
+            self.alerts.send_error_alert(
+                error_message=str(e),
+                context={"date": date, "team": team_name, "mode": "cinematic"}
+            )
+
+            return None
+
+        finally:
+            duration = time.time() - start_time
+            costs = {
+                "gemini": 0,
+                "nano_banana": 0,
+                "audio": 0,
+                "total": 0,
+            }
+
+            self.metrics.log_pipeline_run(
+                date=date,
+                team=team_name,
+                success=success,
+                duration=duration,
+                costs=costs,
+                error=error_msg,
+            )
+
+    def _generate_scene_audio(
+        self,
+        scenes: list,
+        date: str,
+        team_name: str,
+    ) -> Dict[int, str]:
+        """
+        Generate TTS audio for each scene's narration text.
+
+        Returns:
+            {scene_id: audio_path} mapping.
+        """
+        results = {}
+        for scene in scenes:
+            scene_id = scene.get("scene_id", 0)
+            narration = scene.get("narration", "")
+            if not narration:
+                logger.warning(f"Scene {scene_id} has no narration, skipping audio")
+                continue
+
+            audio_path = f"outputs/audio/{date}_{team_name}_scene_{scene_id}.wav"
+            try:
+                result = self.audio_generator.generate_audio(narration, audio_path)
+                if result:
+                    results[scene_id] = result
+                else:
+                    logger.warning(f"Audio generation returned None for scene {scene_id}")
+            except Exception as e:
+                logger.error(f"Audio generation failed for scene {scene_id}: {e}")
+
+        return results
+
     def _find_team_game(self, games: list, team_name: str) -> Optional[Dict]:
         """Find a game for the specified team."""
         for game in games:

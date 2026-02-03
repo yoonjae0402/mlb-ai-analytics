@@ -533,6 +533,45 @@ class ValidationError(PipelineError):
 
 
 # =============================================================================
+# Image Generation Exceptions
+# =============================================================================
+
+class ImageGenerationError(PipelineError):
+    """
+    Raised when AI image generation fails.
+
+    Scenarios:
+    - Nano Banana API error
+    - Invalid prompt
+    - Image download failure
+    - Rate limiting
+
+    Example:
+        raise ImageGenerationError(
+            "Image generation failed",
+            provider="NanoBanana",
+            prompt="cinematic baseball stadium at sunset"
+        )
+    """
+
+    error_code = "IMAGE_GEN_ERROR"
+
+    def __init__(
+        self,
+        message: str,
+        provider: str,
+        prompt: Optional[str] = None,
+        **kwargs: Any
+    ):
+        super().__init__(
+            message,
+            provider=provider,
+            prompt=prompt,
+            **kwargs
+        )
+
+
+# =============================================================================
 # Budget Exceptions
 # =============================================================================
 

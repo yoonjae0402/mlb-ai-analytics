@@ -70,6 +70,30 @@ class Settings(BaseSettings):
     )
 
     # =========================================================================
+    # Nano Banana Image Generation
+    # =========================================================================
+
+    nano_banana_api_key: Optional[str] = Field(
+        default=None,
+        description="Nano Banana API key for AI image generation"
+    )
+    nano_banana_base_url: str = Field(
+        default="https://api.nanobanana.com/v1",
+        description="Nano Banana API base URL"
+    )
+    nano_banana_cost_per_image: float = Field(
+        default=0.0,
+        ge=0,
+        description="Cost per image generation in USD"
+    )
+    image_generation_max_workers: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="Max parallel image generations"
+    )
+
+    # =========================================================================
     # AWS Settings
     # =========================================================================
 

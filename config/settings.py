@@ -53,11 +53,11 @@ class Settings(BaseSettings):
         description="Google Gemini API key for script generation"
     )
     tts_model: str = Field(
-        default="qwen3-tts-flash",
-        description="TTS Model ID"
+        default="en-US-Neural2-J",
+        description="TTS Model/Voice ID"
     )
     tts_voice: str = Field(
-        default="eric",
+        default="en-US-Neural2-J",
         description="TTS Voice ID"
     )
     youtube_api_key: Optional[str] = Field(

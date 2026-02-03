@@ -36,11 +36,8 @@ ENV/
 # =============================================================================
 # Data Files (Large/Generated)
 # =============================================================================
-data/raw/*.json
-data/raw/*.csv
-data/processed/*.parquet
-data/processed/*.csv
-data/cache/
+data/*
+!data/**/.gitkeep
 *.db
 *.sqlite
 *.sqlite3

@@ -22,6 +22,7 @@ secrets.yaml
 secrets.yml
 *_credentials.json
 service_account*.json
+gen-lang-client-*.json
 
 # =============================================================================
 # Virtual Environments

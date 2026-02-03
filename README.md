@@ -1,14 +1,16 @@
-# MLB Automated Video Pipeline ⚾
+# MLB Automated Video Pipeline
 
-Fully automated system for generating baseball analysis videos from MLB game data. Uses Gemini AI for script generation and local TTS for voiceover - no copyrighted footage, pure statistics, AI narration, and data visualization.
+Fully automated system for generating baseball analysis videos from MLB game data. Uses Gemini AI for script generation, Google Cloud TTS for voiceover, and optional AI-generated cinematic images - no copyrighted footage, pure statistics, AI narration, and data visualization.
 
 ## Features
 
 - **Data Collection**: Fetch game data, player stats, and standings from MLB Stats API
 - **ML Predictions**: PyTorch LSTM models for player performance predictions
 - **AI Scripts**: Gemini 2.0 Flash powered script generation
-- **Natural TTS**: Google Cloud TTS (Neural2) with local Qwen3 fallback
+- **Natural TTS**: Google Cloud TTS (Neural2) with local Qwen3-TTS fallback
+- **Cinematic Mode**: AI-generated images with Ken Burns motion effects via Nano Banana API
 - **Video Generation**: Automated video creation with stats, charts, and graphics
+- **Live Game Watcher**: Auto-detect game completions and trigger video generation
 - **YouTube Upload**: Direct upload to YouTube with metadata
 - **Monitoring**: Streamlit dashboard with email alerts
 - **Cost Effective**: Smart caching + local fallback integration
@@ -38,11 +40,12 @@ cp .env.example .env
 
 Required API keys:
 - **Gemini**: Get from [Google AI Studio](https://aistudio.google.com/app/apikey)
-- **Google Cloud TTS**: Enable Text-to-Speech API and download `credentials.json`
+- **Google Cloud TTS** (optional): Enable Text-to-Speech API and download service account JSON
+- **Nano Banana** (optional): For cinematic AI image generation
 - **YouTube** (optional): From [Google Cloud Console](https://console.cloud.google.com/)
 
-Note: 
-- TTS uses Google Cloud (Neural2) by default, falling back to local Qwen3-TTS (free) if limits reached.
+Note:
+- TTS uses Google Cloud (Neural2) by default, falling back to local Qwen3-TTS (free) if unavailable.
 - Gemini API may incur costs depending on usage (check [pricing](https://ai.google.dev/pricing))
 
 ### 3. Run Tests
@@ -54,14 +57,17 @@ pytest tests/ -v
 ### 4. Generate Your First Video
 
 ```bash
-# Fetch yesterday's games
-python scripts/fetch_games.py
+# Generate for yesterday's game (defaults to Yankees)
+python main.py --team Yankees
 
-# Generate a video (dry run first)
-python scripts/generate_video.py --dry-run
+# Generate for a specific date
+python main.py --date 2024-07-04 --team Yankees
 
-# Generate for real
-python scripts/generate_video.py --date 2024-07-04
+# Cinematic mode with AI images
+python main.py --date 2024-07-04 --team Yankees --cinematic
+
+# Dry run (no upload)
+python main.py --date 2024-07-04 --team Yankees --dry-run
 ```
 
 ## Project Structure
@@ -79,24 +85,28 @@ mlb-video-pipeline/
 │   ├── player_predictor.pth # Trained model
 │   └── training_data/       # Historical data
 ├── src/                     # Source code
+│   ├── pipeline.py          # Pipeline orchestrator
+│   ├── watcher.py           # Live game watcher
 │   ├── data/                # Data fetching & processing
+│   ├── analysis/            # Game analysis
 │   ├── models/              # PyTorch model & trainer
-│   ├── content/             # GPT script generation
-│   ├── audio/               # Qwen3-TTS (local)
-│   ├── video/               # Video generation
+│   ├── content/             # Gemini script generation
+│   ├── audio/               # Google Cloud TTS + Qwen3-TTS fallback
+│   ├── video/               # Video generation & cinematic engine
 │   ├── upload/              # YouTube upload
-│   └── utils/               # Logging, validation
+│   └── utils/               # Logging, validation, cost tracking
 ├── scripts/                 # CLI tools
 │   ├── migrate_to_google_tts.py # Verification script for Google TTS
 │   └── train_model.py       # Train prediction model
 ├── outputs/                 # Generated content
 │   ├── scripts/             # Text scripts
-│   ├── audio/               # MP3 narration
+│   ├── audio/               # Audio narration
+│   ├── images/              # AI-generated images
 │   ├── videos/              # Final videos
 │   └── thumbnails/          # Video thumbnails
 ├── tests/                   # Unit tests
 ├── dashboard/               # Streamlit dashboard
-└── deployment/              # AWS, n8n, Docker configs
+└── logs/                    # Runtime logs
 ```
 
 ## Usage Examples
@@ -107,10 +117,10 @@ mlb-video-pipeline/
 from src.data import MLBDataFetcher
 
 fetcher = MLBDataFetcher()
-games = fetcher.get_games_for_date("2024-07-04")
+games = fetcher.get_schedule(start_date="2024-07-04", end_date="2024-07-04")
 
 for game in games:
-    print(f"{game['away_team_name']} @ {game['home_team_name']}: {game['status']}")
+    print(f"{game['away_name']} @ {game['home_name']}: {game['status']}")
 ```
 
 ### Generate Script
@@ -119,22 +129,24 @@ for game in games:
 from src.content import ScriptGenerator
 
 generator = ScriptGenerator()
-script = generator.generate_game_recap({
-    "game_id": 12345,
-    "game_date": "2024-07-04",
-    "home_team_id": 147,  # Yankees
-    "away_team_id": 111,  # Red Sox
-    "home_score": 5,
-    "away_score": 3,
-    "key_stats": {"winning_pitcher": "Gerrit Cole"},
-    "notable_performances": "Aaron Judge: 2 HR, 4 RBI",
-}, duration=60)
+script = generator.generate_script(
+    game_data={
+        "away_team": "Red Sox",
+        "home_team": "Yankees",
+        "away_score": 3,
+        "home_score": 5,
+        "date": "2024-07-04",
+    },
+    analysis={"insights": ["Strong pitching performance"]},
+    prediction={"prediction": "Above Average", "confidence": "High", "reasons": ["Hot streak"]},
+    video_type="series_middle",
+)
 ```
 
 ### Create Video
 
 ```python
-from src.video import VideoGenerator
+from src.video.generator import VideoGenerator
 
 generator = VideoGenerator(template="modern_dark")
 
@@ -151,36 +163,43 @@ video_path = generator.create_video(
 ### Train Prediction Model
 
 ```python
-from src.models import PlayerPredictor, ModelTrainer
+from src.models import PlayerPerformanceLSTM, ModelTrainer
 
-model = PlayerPredictor(input_features=15, hidden_dim=64)
+model = PlayerPerformanceLSTM(input_size=11, hidden_size=64)
 trainer = ModelTrainer(model, learning_rate=0.001)
 
 history = trainer.train(train_loader, val_loader, epochs=50)
-model.save("models/player_predictor.pth")
 ```
 
 ## CLI Commands
 
 ```bash
-```bash
-# Fetch games (via main pipeline or verify script)
+# Generate video for yesterday's game
+python main.py --team Yankees
+
+# Generate for a specific date
+python main.py --date 2024-07-04 --team Yankees
+
+# Cinematic mode with AI images
+python main.py --date 2024-07-04 --team Yankees --cinematic
+
+# Generate and upload to YouTube
+python main.py --date 2024-07-04 --team Yankees --upload
+
+# Watch for live game completions
+python main.py --watch --team Yankees
+
+# Dry run (no upload)
 python main.py --date 2024-07-04 --team Yankees --dry-run
-# Or use python -m src.data.mlb_fetcher if available as module
 
 # Train model
 python scripts/train_model.py --epochs 100 --learning-rate 0.001
 
-# Generate video
-python main.py --date 2024-07-04 --team Yankees
-python main.py --date 2024-07-04 --team Yankees --cinematic
-python main.py --date 2024-07-04 --team Yankees --upload
-
 # Run tests
 pytest tests/ -v
+
 # Verify Google TTS
 python scripts/migrate_to_google_tts.py
-```
 ```
 
 ## Dashboard
@@ -211,38 +230,18 @@ Available templates:
 The pipeline tracks all API costs:
 
 ```python
-from src.utils.logger import CostTracker
+from src.utils import CostTracker
 
 tracker = CostTracker()
-print(f"Today's spend: ${tracker.get_daily_total():.2f}")
+print(f"Today's spend: ${tracker.get_daily_cost():.2f}")
 print(f"Under budget: {tracker.check_budget(10.0)}")
 ```
 
 Default limits:
 - Daily spend limit: $10
-- OpenAI max tokens: 500 per request
-- TTS: Free (local Qwen3-TTS)
-
-## Deployment
-
-### AWS Lambda
-
-```bash
-cd deployment/lambda
-# Deploy using AWS SAM or Serverless Framework
-```
-
-### n8n Automation
-
-Import workflows from `deployment/n8n/` into your n8n instance.
-
-### Docker
-
-```bash
-cd deployment/docker
-docker build -t mlb-pipeline .
-docker run -v ./data:/app/data mlb-pipeline
-```
+- Google Cloud TTS: Neural2 voice ($0.000016/char), cached to minimize cost
+- Local Qwen3-TTS fallback: Free
+- Gemini: Check [pricing](https://ai.google.dev/pricing)
 
 ## Development
 
@@ -255,8 +254,8 @@ pytest tests/ -v
 # With coverage
 pytest tests/ --cov=src --cov-report=html
 
-# Integration tests (requires network)
-pytest tests/ -v -m integration
+# Specific module
+pytest tests/video/ -v
 ```
 
 ### Code Style
@@ -293,7 +292,7 @@ apt install ffmpeg   # Ubuntu
 
 ```bash
 # Clear API cache
-python -c "from src.data import MLBDataFetcher; MLBDataFetcher().clear_cache()"
+rm -rf data/cache/*
 ```
 
 ## License
@@ -310,4 +309,4 @@ MIT License - see LICENSE file for details.
 
 ---
 
-Built with Python, PyTorch, GPT-4, Qwen3-TTS, and MoviePy.
+Built with Python, PyTorch, Gemini, Google Cloud TTS, Qwen3-TTS, and MoviePy.

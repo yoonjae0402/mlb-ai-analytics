@@ -11,6 +11,7 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │  ENTRY POINT: main.py                                                │
 │  Command: python main.py --date 2024-07-04 --team Yankees --upload  │
+│  Watch:   python main.py --watch --team Yankees --cinematic         │
 └──────────────────────────┬──────────────────────────────────────────┘
                            │
                            ▼
@@ -19,6 +20,7 @@
 │  • Coordinates all modules                                           │
 │  • Tracks timing and metrics                                         │
 │  • Handles errors and alerts                                         │
+│  • Standard mode (run_for_date) or Cinematic mode                    │
 └──────────────────────────┬──────────────────────────────────────────┘
                            │
         ┌──────────────────┼──────────────────┐
@@ -31,9 +33,10 @@
        │                 │                  │
        ▼                 ▼                  ▼
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ MLBDataFetch │  │ LSTM Model   │  │ GPT-4o       │
-│ SeriesTrack  │  │ Explainer    │  │ ElevenLabs   │
-│ Analyzer     │  │ Trainer      │  │ CostTracker  │
+│ MLBDataFetch │  │ LSTM Model   │  │ Gemini 2.0   │
+│ SeriesTrack  │  │ Explainer    │  │ Google TTS   │
+│ Analyzer     │  │ Trainer      │  │ Nano Banana  │
+│ GameWatcher  │  │              │  │ CostTracker  │
 └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
        │                 │                  │
        └─────────────────┴──────────────────┘
@@ -43,6 +46,7 @@
         │         DATA FLOW              │
         │  Game Data → Analysis →        │
         │  Prediction → Script → Audio   │
+        │  → Images (cinematic) → Video  │
         └────────────────┬───────────────┘
                          │
         ┌────────────────┴────────────────┐
@@ -56,8 +60,9 @@
        ▼                                 ▼
 ┌──────────────┐                  ┌──────────────┐
 │ ChartGen     │                  │ YouTube API  │
-│ AssetMgr     │                  │ Scheduling   │
+│ AssetMgr     │                  │ GameWatcher  │
 │ VideoAsm     │                  │ Monitoring   │
+│ Cinematic    │                  │              │
 └──────┬───────┘                  └──────┬───────┘
        │                                 │
        └─────────────────┬───────────────┘
@@ -72,6 +77,7 @@
         ┌────────────────────────────────┐
         │  • MetricsCollector            │
         │  • AlertManager                │
+        │  • CostTracker                 │
         │  • Streamlit Dashboard         │
         └────────────────────────────────┘
 ```
@@ -104,22 +110,27 @@ Date + Team
                              │
                              ▼
                     ┌─────────────────┐
-                    │ GPT-4o          │──► Script (text)
+                    │ Gemini 2.0      │──► Script (text/JSON)
                     └─────────────────┘
                              │
-                             ▼
-                    ┌─────────────────┐
-                    │ ElevenLabs      │──► Audio (MP3)
-                    └─────────────────┘
-                             │
-                             ▼
+                     ┌───────┴───────┐
+                     ▼               ▼
+            ┌──────────────┐  ┌──────────────┐
+            │ Google TTS / │  │ Nano Banana  │
+            │ Qwen3-TTS   │  │ (cinematic)  │
+            └──────┬───────┘  └──────┬───────┘
+                   │                 │
+                   │    Audio (MP3)  │    Images (PNG)
+                   └────────┬────────┘
+                            ▼
                     ┌─────────────────┐
                     │ ChartGenerator  │──► Charts (PNG)
                     └─────────────────┘
                              │
                              ▼
                     ┌─────────────────┐
-                    │ VideoAssembler  │──► Video (MP4)
+                    │ VideoAssembler/ │──► Video (MP4)
+                    │ CinematicEngine │
                     └─────────────────┘         │
                              │                  │
                              ▼                  ▼
@@ -144,14 +155,20 @@ main.py
        ├─► PredictionDataProcessor
        ├─► PlayerPerformanceLSTM
        ├─► PredictionExplainer
-       ├─► ScriptGenerator ───────► OpenAI API
-       ├─► AudioGenerator ────────► ElevenLabs API
+       ├─► ScriptGenerator ───────► Gemini API
+       ├─► AudioGenerator ────────► Google Cloud TTS / Qwen3-TTS
+       ├─► ImageGenerator ────────► Nano Banana API
        ├─► ChartGenerator
        ├─► VideoAssembler
+       ├─► CinematicEngine
        ├─► AssetManager ──────────► MLB CDN
        ├─► CostTracker ───────────► data/costs.jsonl
        ├─► MetricsCollector ──────► data/metrics.jsonl
        └─► AlertManager ──────────► Email/Slack
+
+  └─► GameWatcher (--watch mode)
+       ├─► MLBDataFetcher ────────► MLB Stats API (polling)
+       └─► PipelineOrchestrator ──► (triggered on game completion)
 ```
 
 ---
@@ -164,6 +181,7 @@ mlb-video-pipeline/
 ├── main.py                    # Entry point
 ├── src/
 │   ├── pipeline.py            # Orchestrator
+│   ├── watcher.py             # Live game watcher
 │   ├── data/                  # Phase 1
 │   │   ├── fetcher.py
 │   │   ├── series_tracker.py
@@ -178,20 +196,32 @@ mlb-video-pipeline/
 │   ├── content/               # Phase 3
 │   │   ├── script_generator.py
 │   │   ├── audio_generator.py
+│   │   ├── image_generator.py
 │   │   └── templates/
+│   ├── audio/                 # Phase 3 (TTS)
+│   │   ├── tts_engine.py
+│   │   ├── google_tts.py
+│   │   └── tts_cache.py
 │   ├── video/                 # Phase 4
 │   │   ├── video_assembler.py
+│   │   ├── cinematic_engine.py
 │   │   ├── chart_generator.py
-│   │   └── asset_manager.py
+│   │   ├── asset_manager.py
+│   │   └── templates.py
 │   ├── upload/                # Phase 5
+│   │   ├── youtube.py
 │   │   └── youtube_uploader.py
 │   └── utils/                 # Phase 6
 │       ├── cost_tracker.py
 │       ├── metrics.py
-│       └── alerts.py
+│       ├── alerts.py
+│       ├── logger.py
+│       ├── exceptions.py
+│       └── validators.py
 │
 ├── dashboard/                 # Phase 6
-│   └── app.py
+│   ├── app.py
+│   └── streamlit_app.py
 │
 ├── data/
 │   ├── cache/                 # API responses
@@ -200,7 +230,8 @@ mlb-video-pipeline/
 │   └── costs.jsonl            # Cost logs
 │
 ├── outputs/
-│   ├── audio/                 # MP3 files
+│   ├── audio/                 # Audio files
+│   ├── images/                # AI-generated images
 │   └── videos/                # MP4 files
 │
 └── logs/
@@ -216,9 +247,11 @@ mlb-video-pipeline/
 │           EXTERNAL SERVICES                 │
 ├─────────────────────────────────────────────┤
 │ • MLB Stats API (Free)                      │
-│ • OpenAI GPT-4o ($0.02-0.05/video)          │
-│ • ElevenLabs TTS ($0.01-0.03/video)         │
-│ • YouTube Data API (Free)                   │
+│ • Google Gemini 2.0 Flash (Script gen)      │
+│ • Google Cloud TTS Neural2 (Audio)          │
+│ • Qwen3-TTS Local (Free audio fallback)     │
+│ • Nano Banana API (Cinematic AI images)     │
+│ • YouTube Data API (Free upload)            │
 │ • MLB CDN (Logos/Headshots, Free)           │
 └─────────────────────────────────────────────┘
 
@@ -231,8 +264,10 @@ mlb-video-pipeline/
 │ • Streamlit (Dashboard)                     │
 │ • Plotly (Interactive Charts)               │
 │ • Pillow (Image Processing)                 │
-│ • Requests (HTTP)                           │
+│ • google-genai (Gemini API)                 │
+│ • google-cloud-texttospeech (TTS)           │
 │ • MLB-StatsAPI (Data Fetching)              │
+│ • Pydantic (Settings Validation)            │
 └─────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────┐
@@ -256,13 +291,12 @@ Time    Stage                   Activity
 0:01    Data Fetching           Query MLB API
 0:10    Analysis                Extract insights
 0:12    ML Prediction           Run LSTM model
-0:15    Script Generation       Call GPT-4o
-0:30    Audio Synthesis         Call ElevenLabs
-0:40    Chart Generation        Create PNG overlays
-0:45    Video Assembly          Render with MoviePy
-1:15    Upload (Optional)       YouTube API
-1:45    Metrics Logging         Save to JSONL
-1:46    Complete                Return video path
+0:15    Script Generation       Call Gemini 2.0 Flash
+0:20    Audio + Assets          Google TTS / Qwen3-TTS + chart gen (parallel)
+0:30    Video Assembly          Render with MoviePy
+1:00    Upload (Optional)       YouTube API
+1:30    Metrics Logging         Save to JSONL
+1:31    Complete                Return video path
 ```
 
 ---
@@ -272,14 +306,18 @@ Time    Stage                   Activity
 ```
 Component              Cost/Video    Monthly (30 videos)
 ─────────              ──────────    ───────────────────
-OpenAI (GPT-4o)        $0.02-0.05    $0.60-1.50
-ElevenLabs (TTS)       $0.01-0.03    $0.30-0.90
+Gemini 2.0 Flash       ~$0.001       ~$0.03
+Google Cloud TTS       ~$0.01-0.02   ~$0.30-0.60
+Nano Banana (cinematic) ~$0.00       ~$0.00
 MLB API                Free          Free
 YouTube Upload         Free          Free
 Video Processing       Free          Free
 ─────────────────────────────────────────────────────
-TOTAL                  $0.03-0.08    $0.90-2.40
+TOTAL                  ~$0.01-0.03   ~$0.03-0.90
 ```
+
+Note: Costs vary by usage. Google TTS caching reduces repeat costs significantly.
+Local Qwen3-TTS fallback is completely free.
 
 ---
 
@@ -292,7 +330,7 @@ Pipeline Execution
         │        │
         │        └─► data/metrics.jsonl
         │
-        ├─► CostTracker.log_*()
+        ├─► CostTracker.track_cost()
         │        │
         │        └─► data/costs.jsonl
         │
@@ -311,9 +349,9 @@ Dashboard (Streamlit)
 ---
 
 This architecture enables:
-- ✅ Fully automated video generation
-- ✅ Zero manual intervention required
-- ✅ Cost-effective ($0.03-0.08 per video)
-- ✅ Scalable to multiple teams
-- ✅ Comprehensive monitoring
-- ✅ Easy customization
+- Fully automated video generation
+- Zero manual intervention required
+- Cost-effective with smart caching
+- Scalable to multiple teams
+- Comprehensive monitoring
+- Easy customization

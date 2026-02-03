@@ -87,8 +87,8 @@ end = datetime.now().isoformat()
 
 summary = metrics.get_cost_summary(start, end)
 print(f"Last 30 days: ${summary['total']:.2f} ({summary['runs']} videos)")
-print(f"  OpenAI: ${summary['openai']:.2f}")
-print(f"  ElevenLabs: ${summary['elevenlabs']:.2f}")
+print(f"  Gemini: ${summary['gemini']:.2f}")
+print(f"  Google TTS: ${summary['google_tts']:.2f}")
 ```
 
 ### Clear Cache
@@ -102,9 +102,9 @@ rm -rf data/cache/*
 
 ```bash
 # Required
-OPENAI_API_KEY=sk-...
-ELEVENLABS_API_KEY=...
-ELEVENLABS_VOICE_ID=...
+GEMINI_API_KEY=...
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+# Or nothing for local Qwen3 TTS support
 
 # Optional (Alerts)
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
@@ -127,12 +127,12 @@ SMTP_PORT=587
 | Data Fetching | 5-10s | Free |
 | Analysis | 2-5s | Free |
 | ML Prediction | 1-2s | Free |
-| Script Generation | 10-15s | $0.02-0.05 |
-| Audio Synthesis | 5-10s | $0.01-0.03 |
+| Script Generation | 10-15s | $0.001-0.01 |
+| Audio Synthesis | 5-10s | $0.01-0.02 |
 | Chart Generation | 2-3s | Free |
 | Video Assembly | 20-30s | Free |
 | YouTube Upload | 30-60s | Free |
-| **Total** | **60-120s** | **$0.03-0.08** |
+| **Total** | **60-120s** | **$0.02-0.04** |
 
 ---
 
@@ -165,7 +165,7 @@ python main.py --team Rockies
 | Issue | Solution |
 |-------|----------|
 | "No games found" | Check date, team plays that day |
-| "Audio generation failed" | Check ElevenLabs API key & quota |
+| "Audio generation failed" | Check Google Credentials or Qwen install |
 | "Video assembly failed" | Check logs, verify moviepy installed |
 | "Cost alert triggered" | Check dashboard, adjust threshold |
 | Import errors | `source mlb-env/bin/activate` |

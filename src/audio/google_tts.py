@@ -4,8 +4,14 @@ import logging
 from pathlib import Path
 from typing import Optional, Tuple
 
-from google.cloud import texttospeech
-from google.api_core import exceptions as google_exceptions
+try:
+    from google.cloud import texttospeech
+    from google.api_core import exceptions as google_exceptions
+    _GOOGLE_TTS_AVAILABLE = True
+except ImportError:
+    texttospeech = None
+    google_exceptions = None
+    _GOOGLE_TTS_AVAILABLE = False
 
 from config.settings import settings
 from src.utils.logger import get_logger
@@ -34,11 +40,16 @@ class GoogleTTSGenerator:
 
     def _initialize_client(self):
         """Initialize Google Cloud TTS client."""
+        if not _GOOGLE_TTS_AVAILABLE:
+            logger.warning("google-cloud-texttospeech package not installed. Google TTS unavailable.")
+            self.client = None
+            return
+
         try:
             # Set credentials env var if provided in settings
             if settings.google_application_credentials:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
-            
+
             self.client = texttospeech.TextToSpeechClient()
             logger.info("Google Cloud TTS client initialized successfully")
         except Exception as e:
@@ -124,10 +135,10 @@ class GoogleTTSGenerator:
             
             return saved_path
 
-        except google_exceptions.GoogleAPICallError as e:
-            logger.error(f"Google TTS API call failed: {e}")
-            return None
         except Exception as e:
+            if google_exceptions and isinstance(e, google_exceptions.GoogleAPICallError):
+                logger.error(f"Google TTS API call failed: {e}")
+                return None
             logger.error(f"Unexpected error in Google TTS generation: {e}")
             return None
 

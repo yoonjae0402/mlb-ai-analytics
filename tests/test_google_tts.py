@@ -61,23 +61,43 @@ class TestTTSCache(unittest.TestCase):
 
 
 class TestGoogleTTS(unittest.TestCase):
-    @patch("src.audio.google_tts.texttospeech.TextToSpeechClient")
-    def test_generate_success(self, MockClient):
-        # Setup mock
-        mock_instance = MockClient.return_value
-        mock_response = MagicMock()
-        mock_response.audio_content = b"audio_content"
-        mock_instance.synthesize_speech.return_value = mock_response
+    def test_generate_success(self):
+        from src.audio.google_tts import _GOOGLE_TTS_AVAILABLE
 
-        generator = GoogleTTSGenerator()
-        
-        # Patch cache to avoid FS writes
-        with patch.object(generator.cache, 'save', return_value=Path("mock_audio.mp3")) as mock_save:
-            with patch.object(generator.cache, 'get', return_value=None): # Force miss
-                path = generator.generate("Hello world")
-                
-                self.assertEqual(path, Path("mock_audio.mp3"))
-                mock_instance.synthesize_speech.assert_called_once()
+        if not _GOOGLE_TTS_AVAILABLE:
+            # google-cloud-texttospeech not installed; inject a mock module
+            mock_tts_module = MagicMock()
+            with patch("src.audio.google_tts.texttospeech", mock_tts_module), \
+                 patch("src.audio.google_tts._GOOGLE_TTS_AVAILABLE", True):
+                MockClient = mock_tts_module.TextToSpeechClient
+                mock_instance = MockClient.return_value
+                mock_response = MagicMock()
+                mock_response.audio_content = b"audio_content"
+                mock_instance.synthesize_speech.return_value = mock_response
+
+                generator = GoogleTTSGenerator()
+
+                with patch.object(generator.cache, 'save', return_value=Path("mock_audio.mp3")):
+                    with patch.object(generator.cache, 'get', return_value=None):
+                        path = generator.generate("Hello world")
+
+                        self.assertEqual(path, Path("mock_audio.mp3"))
+                        mock_instance.synthesize_speech.assert_called_once()
+        else:
+            with patch("src.audio.google_tts.texttospeech.TextToSpeechClient") as MockClient:
+                mock_instance = MockClient.return_value
+                mock_response = MagicMock()
+                mock_response.audio_content = b"audio_content"
+                mock_instance.synthesize_speech.return_value = mock_response
+
+                generator = GoogleTTSGenerator()
+
+                with patch.object(generator.cache, 'save', return_value=Path("mock_audio.mp3")):
+                    with patch.object(generator.cache, 'get', return_value=None):
+                        path = generator.generate("Hello world")
+
+                        self.assertEqual(path, Path("mock_audio.mp3"))
+                        mock_instance.synthesize_speech.assert_called_once()
 
 
 if __name__ == "__main__":

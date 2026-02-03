@@ -14,7 +14,7 @@ MAX_SCRIPT_WORDS = 80
 
 class AudioGenerator:
     """
-    Generates audio from text using TTSEngine (DashScope).
+    Generates audio from text using TTSEngine (Google Cloud TTS with Qwen3-TTS fallback).
     """
 
     def __init__(self, cost_tracker: Optional[CostTracker] = None):

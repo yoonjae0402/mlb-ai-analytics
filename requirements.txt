@@ -37,7 +37,6 @@ requests>=2.31.0,<3.0.0        # HTTP requests
 beautifulsoup4>=4.12.0         # HTML parsing (for scraping if needed)
 google-api-python-client>=2.100.0  # YouTube Data API
 google-auth-oauthlib>=1.2.0    # Google OAuth
-google-auth-oauthlib>=1.2.0    # Google OAuth
 google-auth-httplib2>=0.2.0    # Google Auth HTTP
 google-cloud-texttospeech>=2.16.0 # Google Cloud TTS API
 

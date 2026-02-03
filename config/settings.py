@@ -7,7 +7,7 @@ All settings can be overridden via environment variables.
 Usage:
     from config.settings import Settings
     settings = Settings()
-    print(settings.openai_api_key)
+    print(settings.gemini_api_key)
 """
 
 import os
@@ -48,13 +48,9 @@ class Settings(BaseSettings):
     # API Keys
     # =========================================================================
 
-    openai_api_key: Optional[str] = Field(
+    gemini_api_key: Optional[str] = Field(
         default=None,
-        description="OpenAI API key for GPT-4"
-    )
-    dashscope_api_key: Optional[str] = Field(
-        default=None,
-        description="Alibaba Cloud DashScope API key for Qwen3-TTS"
+        description="Google Gemini API key for script generation"
     )
     tts_model: str = Field(
         default="qwen3-tts-flash",
@@ -132,15 +128,11 @@ class Settings(BaseSettings):
         ge=0,
         description="Maximum daily API spend in USD"
     )
-    openai_max_tokens: int = Field(
+    gemini_max_tokens: int = Field(
         default=500,
         ge=100,
         le=4000,
-        description="Max tokens per GPT request"
-    )
-    dashscope_cost_per_million_chars: float = Field(
-        default=2.0,
-        description="Cost per 1M characters (approximate)"
+        description="Max tokens per Gemini request"
     )
 
     # =========================================================================
@@ -255,8 +247,9 @@ class Settings(BaseSettings):
     def validate_api_keys(self) -> dict[str, bool]:
         """Check which API keys are configured."""
         return {
-            "openai": bool(self.openai_api_key),
-            "dashscope": bool(self.dashscope_api_key),
+            "gemini": bool(self.gemini_api_key),
+            "google_tts": bool(self.google_application_credentials),
+            "nano_banana": bool(self.nano_banana_api_key),
             "youtube": bool(self.youtube_api_key),
             "aws": bool(self.aws_access_key_id and self.aws_secret_access_key),
         }

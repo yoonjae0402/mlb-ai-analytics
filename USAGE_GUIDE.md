@@ -32,11 +32,13 @@ Edit your `.env` file with required credentials:
 
 ```bash
 # Required for script generation
-OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=...
 
-# Required for voice synthesis
-ELEVENLABS_API_KEY=...
-ELEVENLABS_VOICE_ID=...
+# Required for voice synthesis (optional, falls back to local Qwen3)
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+
+# Optional: For cinematic mode
+NANO_BANANA_API_KEY=...
 
 # Optional: For alerts
 SLACK_WEBHOOK_URL=https://hooks.slack.com/...
@@ -154,7 +156,7 @@ The dashboard opens at `http://localhost:8501`
 - Recent runs table
 
 **💰 Cost Analysis:**
-- Daily cost breakdown (OpenAI vs ElevenLabs)
+- Daily cost breakdown (Gemini vs Google TTS)
 - Stacked bar charts
 - Cost per video average
 - Monthly projection
@@ -215,12 +217,12 @@ print(f"Videos generated: {summary['runs']}")
 
 4. Script Generation (10-15s)
    ├─ Hydrate prompt template
-   ├─ Call GPT-4o API
+   ├─ Call Gemini 2.0 Flash API
    └─ Validate script structure
 
 5. Audio Synthesis (5-10s)
-   ├─ Send script to ElevenLabs
-   ├─ Download MP3
+   ├─ Check Cache
+   ├─ Call Google Cloud TTS (or Qwen3 fallback)
    └─ Track character usage
 
 6. Chart Generation (2-3s)
@@ -245,12 +247,12 @@ Total: ~60-120 seconds per video
 ### Cost Breakdown
 
 **Per Video (Typical):**
-- OpenAI (GPT-4o): $0.02 - $0.05
-- ElevenLabs (TTS): $0.01 - $0.03
-- **Total: $0.03 - $0.08 per video**
+- Gemini 2.0 Flash: ~$0.001 - $0.01
+- Google Cloud TTS: ~$0.01 - $0.02 (cached)
+- **Total: $0.02 - $0.04 per video**
 
 **Monthly (30 videos):**
-- Estimated: $0.90 - $2.40/month
+- Estimated: $0.60 - $1.20/month
 
 ---
 
@@ -294,9 +296,12 @@ jobs:
       
       - name: Generate video
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
-        run: python main.py --team Yankees --upload
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        run: |
+          echo "$GOOGLE_APPLICATION_CREDENTIALS" > google_creds.json
+          export GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/google_creds.json
+          python main.py --team Yankees --upload
 ```
 
 ---
@@ -362,11 +367,11 @@ for g in games:
 
 ### "Audio generation failed"
 
-**Cause:** ElevenLabs API issue or quota exceeded.
+**Cause:** Google Cloud API issue or quota exceeded.
 
 **Solution:**
-1. Check API key: `echo $ELEVENLABS_API_KEY`
-2. Check quota at elevenlabs.io
+1. Check credentials path: `echo $GOOGLE_APPLICATION_CREDENTIALS`
+2. Check quota at console.cloud.google.com
 3. View error in `logs/pipeline.log`
 
 ### "Video assembly failed"

@@ -7,7 +7,7 @@ Automated system for generating baseball analysis videos from MLB game data. No 
 - **Data Collection**: Fetch game data, player stats, and standings from MLB Stats API
 - **ML Predictions**: PyTorch models for player performance predictions
 - **AI Scripts**: GPT-4 powered script generation for engaging narration
-- **Natural TTS**: ElevenLabs text-to-speech for professional voiceover
+- **Natural TTS**: Qwen3-TTS (local, free) for professional voiceover
 - **Video Generation**: Automated video creation with stats, charts, and graphics
 - **YouTube Upload**: Direct upload to YouTube with metadata
 - **Cost Tracking**: Monitor API usage and spending
@@ -38,8 +38,9 @@ cp .env.example .env
 
 Required API keys:
 - **OpenAI**: Get from [platform.openai.com](https://platform.openai.com/api-keys)
-- **ElevenLabs**: Get from [elevenlabs.io](https://elevenlabs.io/)
 - **YouTube** (optional): From [Google Cloud Console](https://console.cloud.google.com/)
+
+Note: TTS uses local Qwen3-TTS (no API key required)
 
 ### 3. Run Tests
 
@@ -78,7 +79,7 @@ mlb-video-pipeline/
 │   ├── data/                # Data fetching & processing
 │   ├── models/              # PyTorch model & trainer
 │   ├── content/             # GPT script generation
-│   ├── audio/               # ElevenLabs TTS
+│   ├── audio/               # Qwen3-TTS (local)
 │   ├── video/               # Video generation
 │   ├── upload/              # YouTube upload
 │   └── utils/               # Logging, validation
@@ -218,7 +219,7 @@ print(f"Under budget: {tracker.check_budget(10.0)}")
 Default limits:
 - Daily spend limit: $10
 - OpenAI max tokens: 500 per request
-- ElevenLabs monthly chars: 100,000
+- TTS: Free (local Qwen3-TTS)
 
 ## Deployment
 
@@ -307,4 +308,4 @@ MIT License - see LICENSE file for details.
 
 ---
 
-Built with Python, PyTorch, GPT-4, ElevenLabs, and MoviePy.
+Built with Python, PyTorch, GPT-4, Qwen3-TTS, and MoviePy.

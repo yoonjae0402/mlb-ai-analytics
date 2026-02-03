@@ -1,4 +1,6 @@
 import statsapi
+# NOTE: pybaseball is imported but not actively used yet
+# It's reserved for future Statcast metrics integration (Phase 1 enhancement)
 import pybaseball
 import pandas as pd
 import logging

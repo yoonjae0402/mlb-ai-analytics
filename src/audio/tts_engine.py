@@ -1,20 +1,22 @@
 """
 MLB Video Pipeline - Text-to-Speech Engine
 
-Generates natural narration using Alibaba Cloud DashScope (Qwen3-TTS).
-Handles voice selection, audio generation, and file management.
-
-Compatible with DashScope SDK
+Generates natural narration using local Qwen3-TTS (Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice).
+Runs entirely locally without API keys.
 """
 
 from pathlib import Path
 from typing import Any
 from datetime import datetime
 import hashlib
-import json
+import torch
+import scipy.io.wavfile as wavfile
+import numpy as np
 
-import dashscope
-from dashscope.audio.tts import SpeechSynthesizer
+try:
+    from qwen_tts import Qwen3TTSModel
+except ImportError:
+    Qwen3TTSModel = None
 
 from config.settings import settings
 from src.utils.logger import get_logger
@@ -26,46 +28,71 @@ logger = get_logger(__name__)
 
 class TTSEngine:
     """
-    Text-to-speech engine using DashScope (Qwen3-TTS).
+    Text-to-speech engine using local Qwen3-TTS.
 
     Generates natural-sounding narration for video scripts.
     """
 
-    # DashScope Qwen3 pricing (approximate, per 1K characters)
-    # Adjust based on settings
-    PRICE_PER_1K_CHARS = settings.dashscope_cost_per_million_chars / 1000
+    DEFAULT_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"  # Smaller model for better compatibility
+    DEFAULT_VOICE = "longxiaochun"
 
     def __init__(
         self,
-        api_key: str | None = None,
+        api_key: str | None = None, # Kept for compatibility, unused
         model: str | None = None,
         voice: str | None = None,
         output_dir: Path | None = None,
+        device: str | None = None
     ):
         """
         Initialize the TTS engine.
 
         Args:
-            api_key: DashScope API key
-            model: Model ID to use
+            api_key: Unused (kept for compatibility)
+            model: Model ID to use (default: Qwen3-TTS 0.6B CustomVoice)
             voice: Voice ID to use
             output_dir: Directory for audio output
+            device: 'cuda', 'mps', or 'cpu' (auto-detected if None)
         """
-        self.api_key = api_key or settings.dashscope_api_key
-        if not self.api_key:
-            raise ValueError("DashScope API key not configured")
-        
-        # Configure dashscope
-        dashscope.api_key = self.api_key
+        if Qwen3TTSModel is None:
+            raise ImportError("qwen-tts package is not installed. Run `pip install qwen-tts`.")
 
-        self.model = model or settings.tts_model
-        self.voice = voice or settings.tts_voice
+        self.model_id = model or self.DEFAULT_MODEL_ID
+        self.voice = voice or settings.tts_voice or self.DEFAULT_VOICE
         self.output_dir = output_dir or settings.audio_output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.cost_tracker = get_cost_tracker()
+        # Device selection: prefer CUDA > CPU (skip MPS due to memory issues)
+        if device:
+            self.device = device
+        elif torch.cuda.is_available():
+            self.device = "cuda"
+        else:
+            # Use CPU for stability (MPS can have memory issues with large models)
+            self.device = "cpu"
+        
+        logger.info(f"Initializing Qwen3-TTS with model: {self.model_id} on {self.device}")
+        
+        try:
+            self.model = Qwen3TTSModel.from_pretrained(
+                self.model_id,
+                device_map=self.device
+            )
+            # Verify voice support
+            supported = self.model.get_supported_speakers()
+            if supported:
+                logger.info(f"Supported voices: {supported}")
+                if self.voice.lower() not in [s.lower() for s in supported]:
+                    logger.warning(f"Voice '{self.voice}' not found in supported speakers. Using default '{supported[0]}'")
+                    self.voice = supported[0]
+            
+            logger.info("Qwen3-TTS model loaded successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to load Qwen3-TTS model: {e}")
+            raise
 
-        logger.info(f"TTSEngine initialized with model: {self.model}, voice: {self.voice}")
+        self.cost_tracker = get_cost_tracker()
 
     # =========================================================================
     # Voice Management
@@ -73,11 +100,14 @@ class TTSEngine:
 
     def list_voices(self) -> list[dict[str, Any]]:
         """
-        List available voices.
-        
-        DashScope currently has a set list of voices for Qwen3-TTS/CosyVoice.
-        Returning a static list of popular ones for now.
+        List available voices from the model.
         """
+        if hasattr(self, 'model'):
+            speakers = self.model.get_supported_speakers()
+            if speakers:
+                return [{"voice_id": s, "name": s, "language": "Multilingual"} for s in speakers]
+        
+        # Fallback if model not loaded or no speakers listed
         return [
             {"voice_id": "longxiaochun", "name": "Long Xiaochun (Female)", "language": "Chinese/English"},
             {"voice_id": "longwan", "name": "Long Wan (Male)", "language": "Chinese/English"},
@@ -90,7 +120,7 @@ class TTSEngine:
         Set the voice to use for generation.
 
         Args:
-            voice_id: DashScope voice ID
+            voice_id: Voice ID (speaker name)
         """
         self.voice = voice_id
         logger.info(f"Voice set to: {voice_id}")
@@ -105,7 +135,7 @@ class TTSEngine:
         output_name: str | None = None,
     ) -> Path:
         """
-        Generate audio narration from text.
+        Generate audio narration from text using local Qwen3-TTS.
 
         Args:
             text: Script text to convert to speech
@@ -123,9 +153,9 @@ class TTSEngine:
             output_name = f"narration_{text_hash}"
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = self.output_dir / f"{output_name}_{timestamp}.mp3"
+        output_path = self.output_dir / f"{output_name}_{timestamp}.wav" # Using wav for direct output
 
-        logger.info(f"Generating narration: {len(text)} characters")
+        logger.info(f"Generating narration: {len(text)} characters using voice '{self.voice}'")
 
         if settings.dry_run:
             logger.info("DRY RUN: Would generate audio")
@@ -133,32 +163,27 @@ class TTSEngine:
             return output_path
 
         try:
-            # Generate audio using DashScope
-            result = SpeechSynthesizer.call(
-                model=self.model,
+            # Generate audio using Qwen3-TTS
+            # generate_custom_voice returns (wavs, sample_rate)
+            # wavs is a list of numpy arrays (one per input text)
+            wavs, sample_rate = self.model.generate_custom_voice(
                 text=text,
-                voice=self.voice,
-                format='mp3'
+                speaker=self.voice,
+                non_streaming_mode=True
             )
 
-            if result.get_audio_data() is not None:
-                with open(output_path, 'wb') as f:
-                    f.write(result.get_audio_data())
+            if wavs and len(wavs) > 0:
+                audio_data = wavs[0]
+                
+                # Normalize float32 audio to int16 if necessary or save as is
+                # scipy.io.wavfile.write handles float32 [-1.0, 1.0] usually
+                
+                wavfile.write(str(output_path), sample_rate, audio_data)
+                
+                logger.info(f"Audio saved to {output_path}")
+                return output_path
             else:
-                 logger.error(f"DashScope API Error: {result}")
-                 raise RuntimeError(f"Failed to generate audio: {result.message}")
-
-            # Track cost
-            char_count = len(text)
-            
-            # Log usage
-            if hasattr(self.cost_tracker, 'log_dashscope_usage'):
-                self.cost_tracker.log_dashscope_usage(self.model, char_count)
-            else:
-                logger.warning("Cost tracker does not support dashscope logging")
-
-            logger.info(f"Audio saved to {output_path}")
-            return output_path
+                 raise RuntimeError("No audio data generated")
 
         except Exception as e:
             logger.error(f"Failed to generate narration: {e}")
@@ -209,12 +234,14 @@ class TTSEngine:
         Get duration of an audio file in seconds.
         """
         try:
-            from moviepy.editor import AudioFileClip
-            with AudioFileClip(str(audio_path)) as audio:
-                return audio.duration
-        except ImportError:
-            logger.warning("moviepy not available, cannot get audio duration")
-            return 0.0
+            # Use scipy to get duration directly if moviepy fails or to reduce dependencies
+            try:
+                rate, data = wavfile.read(str(audio_path))
+                return len(data) / rate
+            except:
+                from moviepy.editor import AudioFileClip
+                with AudioFileClip(str(audio_path)) as audio:
+                    return audio.duration
         except Exception as e:
             logger.error(f"Failed to get audio duration: {e}")
             return 0.0
@@ -226,14 +253,11 @@ class TTSEngine:
 
     def estimate_cost(self, text: str) -> float:
         """Estimate cost."""
-        char_count = len(text)
-        return (char_count / 1000) * self.PRICE_PER_1K_CHARS
+        # Local inference is free!
+        return 0.0
 
     def health_check(self) -> bool:
         """
-        Check if the DashScope API is accessible.
-        
-        We'll just try to instantiate a synthesizer or do a weak check.
-        API Key is already checked in init.
+        Check if the model is loaded.
         """
-        return bool(self.api_key)
+        return hasattr(self, 'model') and self.model is not None

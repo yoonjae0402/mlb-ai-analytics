@@ -1,7 +1,7 @@
 """
 MLB Video Pipeline - Audio Package
 
-Text-to-speech narration using ElevenLabs:
+Text-to-speech narration using local Qwen3-TTS (free, no API key):
 - tts_engine: Generate natural voice narration
 
 Usage:

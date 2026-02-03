@@ -43,7 +43,7 @@ This document outlines the strategic approach and technical architecture for the
 ### Strategy
 - **LLM**: Use **GPT-4o** for scriptwriting. It understands nuance and can adopt a "Hype Sports Commentator" persona.
 - **Templates**: Don't let the LLM guess the structure. Use rigid templates (`Hook` -> `Recap` -> `Prediction` -> `CTA`) to ensure viral pacing.
-- **Voice**: **Alibaba DashScope TTS** for high-quality text-to-speech with Chinese language support.
+- **Voice**: **Local Qwen3-TTS** for high-quality text-to-speech with multilingual support (free, no API key required).
 
 ### Key Components
 - **`src/content/script_generator.py`**: Hydrates prompts with game data and ML predictions.

@@ -10,13 +10,15 @@ MLB-StatsAPI>=1.7.2            # Official MLB Stats API wrapper
 torch>=2.2.0,<3.0.0            # PyTorch for ML models
 pandas>=2.1.0,<3.0.0           # Data manipulation
 numpy>=1.26.0,<2.0.0           # Numerical computing (numpy 2.x has breaking changes)
+scipy>=1.10.0              # Audio file I/O
 scikit-learn>=1.4.0,<2.0.0     # ML utilities (train/test split, metrics)
 
 # =============================================================================
 # AI APIs
 # =============================================================================
 openai>=1.40.0,<2.0.0          # GPT-4 for script generation
-dashscope>=1.20.0        # Alibaba Cloud DashScope (Qwen3-TTS)
+qwen-tts>=0.1.0              # Local Qwen3-TTS (free, no API key)
+# dashscope>=1.20.0          # Alibaba Cloud DashScope (replaced by local Qwen3-TTS)
 
 # =============================================================================
 # Video & Image Processing

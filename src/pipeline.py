@@ -2,13 +2,14 @@ import logging
 from datetime import datetime
 from typing import Optional, Dict, Any
 from pathlib import Path
+import time
 
 from src.data import MLBDataFetcher, SeriesTracker, PredictionDataProcessor
 from src.analysis import MLBStatsAnalyzer
 from src.models import PlayerPerformanceLSTM, PredictionExplainer
 from src.content import ScriptGenerator, AudioGenerator
 from src.video import AssetManager, ChartGenerator, VideoAssembler
-from src.utils import CostTracker
+from src.utils import CostTracker, MetricsCollector, AlertManager
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,10 @@ class PipelineOrchestrator:
         self.chart_generator = ChartGenerator()
         self.video_assembler = VideoAssembler(self.asset_manager)
         
+        # Monitoring components
+        self.metrics = MetricsCollector()
+        self.alerts = AlertManager()
+        
         logger.info("Pipeline initialized successfully.")
     
     def run_for_date(self, date: str, team_name: str = "Yankees") -> Optional[str]:
@@ -52,6 +57,10 @@ class PipelineOrchestrator:
         Returns:
             Path to generated video, or None if failed
         """
+        start_time = time.time()
+        success = False
+        error_msg = None
+        
         try:
             logger.info(f"Starting pipeline for {team_name} on {date}")
             
@@ -61,12 +70,14 @@ class PipelineOrchestrator:
             
             if not games:
                 logger.warning(f"No games found for {date}")
+                error_msg = "No games found"
                 return None
             
             # Find the team's game
             game = self._find_team_game(games, team_name)
             if not game:
                 logger.warning(f"No game found for {team_name} on {date}")
+                error_msg = f"No game found for {team_name}"
                 return None
             
             game_data = self.fetcher.get_game_data(game['game_id'])
@@ -104,6 +115,7 @@ class PipelineOrchestrator:
             
             if not audio_file:
                 logger.error("Audio generation failed")
+                error_msg = "Audio generation failed"
                 return None
             
             # Step 7: Generate Charts
@@ -131,21 +143,52 @@ class PipelineOrchestrator:
             
             if video_path:
                 logger.info(f"✅ Pipeline completed successfully! Video: {video_path}")
+                success = True
                 
-                # Log costs
+                # Get final costs
                 total_cost = self.cost_tracker.get_total_cost()
                 logger.info(f"Total API cost: ${total_cost:.4f}")
+                
+                # Check cost threshold
+                self.alerts.check_cost_threshold(total_cost, threshold=1.00)
                 
                 return video_path
             else:
                 logger.error("Video assembly failed")
+                error_msg = "Video assembly failed"
                 return None
                 
         except Exception as e:
             logger.error(f"Pipeline failed: {e}")
+            error_msg = str(e)
             import traceback
             traceback.print_exc()
+            
+            # Send error alert
+            self.alerts.send_error_alert(
+                error_message=str(e),
+                context={"date": date, "team": team_name}
+            )
+            
             return None
+        
+        finally:
+            # Log metrics regardless of success/failure
+            duration = time.time() - start_time
+            costs = {
+                "gemini": 0,  # Free with Google One AI Premium
+                "audio": 0,  # Free with local Qwen3-TTS
+                "total": 0  # All free!
+            }
+            
+            self.metrics.log_pipeline_run(
+                date=date,
+                team=team_name,
+                success=success,
+                duration=duration,
+                costs=costs,
+                error=error_msg
+            )
     
     def _find_team_game(self, games: list, team_name: str) -> Optional[Dict]:
         """Find a game for the specified team."""

@@ -5,24 +5,23 @@ from src.content.script_generator import ScriptGenerator
 class TestScriptGenerator:
     
     @pytest.fixture
-    def mock_openai(self):
-        with patch('src.content.script_generator.OpenAI') as mock:
+    def mock_genai(self):
+        with patch('src.content.script_generator.genai') as mock:
             yield mock
             
-    def test_generate_script(self, mock_openai, tmp_path):
+    def test_generate_script(self, mock_genai, tmp_path):
         # Create dummy template
         template_dir = tmp_path / "templates"
         template_dir.mkdir()
         (template_dir / "series_middle.txt").write_text("Test Script: {key_insight}, Prediction: {prediction_class}")
         
-        # Mock API response
+        # Mock Gemini API response
         mock_client = MagicMock()
-        mock_openai.return_value = mock_client
-        mock_choice = MagicMock()
-        mock_choice.message.content = "Generated Script Content"
+        mock_genai.Client.return_value = mock_client
+        
         mock_response = MagicMock()
-        mock_response.choices = [mock_choice]
-        mock_client.chat.completions.create.return_value = mock_response
+        mock_response.text = "Generated Script Content"
+        mock_client.models.generate_content.return_value = mock_response
         
         generator = ScriptGenerator(template_dir=str(template_dir))
         
@@ -34,20 +33,21 @@ class TestScriptGenerator:
         script = generator.generate_script(game_data, analysis, prediction, "series_middle")
         
         assert script == "Generated Script Content"
-        mock_client.chat.completions.create.assert_called_once()
+        mock_client.models.generate_content.assert_called_once()
         
-    def test_missing_template_fallback(self, mock_openai, tmp_path):
+    def test_missing_template_fallback(self, mock_genai, tmp_path):
         # Only create series_middle
         template_dir = tmp_path / "templates"
         template_dir.mkdir()
         (template_dir / "series_middle.txt").write_text("Fallback Template")
 
-        # Mock API BEFORE creating generator
+        # Mock Gemini API
         mock_client = MagicMock()
-        mock_openai.return_value = mock_client
-
-        # Configure the mock chain to return "Script" when .strip() is called
-        mock_client.chat.completions.create.return_value.choices[0].message.content.strip.return_value = "Script"
+        mock_genai.Client.return_value = mock_client
+        
+        mock_response = MagicMock()
+        mock_response.text = "Script"
+        mock_client.models.generate_content.return_value = mock_response
 
         generator = ScriptGenerator(template_dir=str(template_dir))
 

@@ -2,7 +2,7 @@ import os
 import logging
 from typing import Dict, Any, Optional
 from pathlib import Path
-from openai import OpenAI
+from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,15 +10,19 @@ logger = logging.getLogger(__name__)
 
 class ScriptGenerator:
     """
-    Generates video scripts using GPT-4 based on game analysis and predictions.
+    Generates video scripts using Google Gemini based on game analysis and predictions.
     """
     
     def __init__(self, template_dir: str = "./src/content/templates"):
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.api_key = os.getenv("GEMINI_API_KEY")
         if not self.api_key:
-            logger.warning("OPENAI_API_KEY not found in environment variables.")
+            logger.warning("GEMINI_API_KEY not found in environment variables.")
         
-        self.client = OpenAI(api_key=self.api_key)
+        # Configure Gemini
+        genai.configure(api_key=self.api_key)
+        
+        # Use Gemini 2.0 Flash for best speed/quality balance
+        self.client = genai.Client(api_key=self.api_key)
         self.template_dir = Path(template_dir)
         
     def generate_script(
@@ -43,22 +47,23 @@ class ScriptGenerator:
         try:
             prompt = self._create_prompt(game_data, analysis, prediction, video_type)
             
-            logger.info(f"Generating script for {video_type} video...")
-            response = self.client.chat.completions.create(
-                model="gpt-4o", # Use GPT-4o for best quality/cost balance
-                messages=[
-                    {"role": "system", "content": "You are a professional MLB content creator."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=300
+            logger.info(f"Generating script for {video_type} video using Gemini...")
+            
+            # Generate content with Gemini
+            response = self.client.models.generate_content(
+                model='gemini-2.0-flash-exp',
+                contents=prompt,
+                config=genai.types.GenerateContentConfig(
+                    temperature=0.7,
+                    max_output_tokens=300,
+                )
             )
             
-            script = response.choices[0].message.content.strip()
+            script = response.text.strip()
             return script
             
         except Exception as e:
-            logger.error(f"Error generating script: {e}")
+            logger.error(f"Error generating script with Gemini: {e}")
             return "Error generating script. Please check logs."
 
     def _create_prompt(

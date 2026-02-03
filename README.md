@@ -1,17 +1,17 @@
 # MLB Automated Video Pipeline ⚾
 
-Automated system for generating baseball analysis videos from MLB game data. No copyrighted footage - pure statistics, AI narration, and data visualization.
+Fully automated system for generating baseball analysis videos from MLB game data. Uses Gemini AI for script generation and local TTS for voiceover - no copyrighted footage, pure statistics, AI narration, and data visualization.
 
 ## Features
 
 - **Data Collection**: Fetch game data, player stats, and standings from MLB Stats API
-- **ML Predictions**: PyTorch models for player performance predictions
-- **AI Scripts**: GPT-4 powered script generation for engaging narration
+- **ML Predictions**: PyTorch LSTM models for player performance predictions
+- **AI Scripts**: Gemini 2.0 Flash powered script generation
 - **Natural TTS**: Qwen3-TTS (local, free) for professional voiceover
 - **Video Generation**: Automated video creation with stats, charts, and graphics
 - **YouTube Upload**: Direct upload to YouTube with metadata
-- **Cost Tracking**: Monitor API usage and spending
-- **Dashboard**: Streamlit monitoring interface
+- **Monitoring**: Streamlit dashboard with email alerts
+- **Cost Effective**: Local processing + efficient API usage
 
 ## Quick Start
 
@@ -37,15 +37,17 @@ cp .env.example .env
 ```
 
 Required API keys:
-- **OpenAI**: Get from [platform.openai.com](https://platform.openai.com/api-keys)
+- **Gemini**: Get from [Google AI Studio](https://aistudio.google.com/app/apikey)
 - **YouTube** (optional): From [Google Cloud Console](https://console.cloud.google.com/)
 
-Note: TTS uses local Qwen3-TTS (no API key required)
+Note: 
+- TTS uses local Qwen3-TTS (no API key required, completely free)
+- Gemini API may incur costs depending on usage (check [pricing](https://ai.google.dev/pricing))
 
 ### 3. Run Tests
 
 ```bash
-python scripts/test_pipeline.py
+pytest tests/ -v
 ```
 
 ### 4. Generate Your First Video

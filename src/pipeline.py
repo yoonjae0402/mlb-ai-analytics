@@ -7,9 +7,9 @@ import time
 
 from src.data import MLBDataFetcher, SeriesTracker, PredictionDataProcessor
 from src.analysis import MLBStatsAnalyzer
-from src.models import PlayerPerformanceLSTM, PredictionExplainer
-from src.content import ScriptGenerator, AudioGenerator, ImageGenerator
-from src.video import AssetManager, ChartGenerator, VideoAssembler, CinematicEngine
+from src.models import PlayerPerformanceLSTM, PredictionExplainer, TeamWinPredictor
+from src.content import ScriptGenerator, AudioGenerator, ImageGenerator, ViralScriptGenerator
+from src.video import AssetManager, ChartGenerator, VideoAssembler, CinematicEngine, ViralVideoEngine
 from src.utils import CostTracker, MetricsCollector, AlertManager
 
 logger = logging.getLogger(__name__)
@@ -428,3 +428,141 @@ class PipelineOrchestrator:
                team_name.lower() in game.get('home_name', '').lower():
                 return game
         return None
+
+    def run_viral_for_date(self, date: str, team_name: str = "Yankees") -> Optional[str]:
+        """
+        Run the viral pipeline: fast-paced recap + win probability prediction.
+        """
+        start_time = time.time()
+        success = False
+        error_msg = None
+        costs = {"gemini": 0.0, "tts": 0.0} # Placeholder until CostTracker is fully wired
+        
+        # Lazy load viral components
+        self.viral_script_generator = ViralScriptGenerator()
+        self.team_predictor = TeamWinPredictor()
+        self.viral_engine = ViralVideoEngine()
+        
+        # New components
+        from src.utils.video_validator import VideoValidator
+        from src.utils.pipeline_monitor import PipelineMonitor
+        validator = VideoValidator()
+        monitor = PipelineMonitor()
+        
+        try:
+            logger.info(f"Starting VIRAL pipeline for {team_name} on {date}")
+            
+            # 1. Fetch Game (Complete Data)
+            logger.info("Step 1: Fetching COMPLETE game data...")
+            games = self.fetcher.get_schedule(start_date=date, end_date=date)
+            if not games: 
+                logger.warning(f"No games found for {date}")
+                return None
+            
+            game_summary = self._find_team_game(games, team_name)
+            if not game_summary: 
+                logger.warning(f"No game found for {team_name}")
+                return None
+            
+            # Use new robust fetcher method
+            game_data = self.fetcher.get_complete_game_data(game_summary['game_id'])
+            
+            # 2. Analyze (Analysis now effectively done during fetch/enrichment, but keeping analyzer for future)
+            # analysis = self.analyzer.analyze_game(game_data)
+            analysis = {}
+            
+            # 3. Predict Next Game
+            logger.info("Step 3: Finding next game and generating prediction...")
+            next_game = self.fetcher.get_next_game(team_name, date)
+            prediction = None
+            
+            if next_game:
+                logger.info(f"Next game found: {next_game['opponent']} on {next_game['date']}")
+                
+                # Use Mock Season Stats for MVP since we don't have historical DB yet
+                prediction = self.team_predictor.predict(
+                    team_stats={
+                        "win_pct": 0.550, 
+                        "last_10_win_pct": 0.600,
+                        "run_diff_per_game": 0.5
+                    }, 
+                    opp_stats={
+                        "win_pct": 0.480,
+                        "last_10_win_pct": 0.400,
+                        "run_diff_per_game": -0.2
+                    },
+                    is_home=next_game['is_home']
+                )
+            else:
+                logger.warning("No next game found, using heuristic/demo prediction for video continuity.")
+                prediction = self.team_predictor._fallback_prediction()
+                prediction['note'] = "End of Season / Demo Mode"
+            
+            # 4. Generate Viral Script
+            script = self.viral_script_generator.generate_viral_script(
+                game_data=game_data,
+                prediction=prediction,
+                next_game_data=next_game
+            )
+            self._last_viral_script = script
+            
+            # 5. Parallel Audio/Assets
+            scenes = script.get("scenes", [])
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                fut_audio = pool.submit(self._generate_scene_audio, scenes, date, team_name)
+                # Prefetch assets for top performers
+                def _prefetch_images():
+                    self.asset_manager.fetch_team_logo(game_data['home_team_id'])
+                    self.asset_manager.fetch_team_logo(game_data['away_team_id'])
+                    # Future: Fetch player heads here
+                    
+                fut_assets = pool.submit(_prefetch_images)
+                
+                scene_audio = fut_audio.result()
+                fut_assets.result()
+
+            # 6. Assemble Video
+            video_path = self.viral_engine.render_video(
+                script=script,
+                game_data=game_data,
+                prediction=prediction,
+                scene_audio_paths=scene_audio,
+                output_filename=f"{date}_{team_name}_viral.mp4"
+            )
+            
+            if video_path:
+                # 7. Validation
+                try:
+                    logger.info("Step 7: Validating video...")
+                    validator.validate_video(video_path)
+                    success = True
+                    logger.info(f"Viral pipeline success: {video_path}")
+                    return video_path
+                except Exception as ve:
+                    logger.error(f"Video validation failed: {ve}")
+                    # We return the path anyway but marked as failed internally? 
+                    # Or return None? Strict mode -> Return None.
+                    error_msg = f"Validation failed: {ve}"
+                    return None
+            else:
+                error_msg = "Video rendering failed"
+                return None
+                
+        except Exception as e:
+            logger.error(f"Viral pipeline failed: {e}")
+            import traceback
+            traceback.print_exc()
+            error_msg = str(e)
+            return None
+        finally:
+            # Metrics
+            duration = time.time() - start_time
+            monitor.log_run(
+                date=date,
+                team=team_name,
+                mode="viral",
+                success=success,
+                duration_seconds=duration,
+                costs=costs,
+                error=error_msg
+            )

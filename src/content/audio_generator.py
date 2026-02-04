@@ -35,7 +35,7 @@ class AudioGenerator:
         logger.warning(f"Script too long ({len(words)} words), truncating to {max_words}")
         return " ".join(words[:max_words])
 
-    def generate_audio(self, text: str, output_path: str) -> Optional[str]:
+    def generate_audio(self, text: str, output_path: str, speaking_rate: float = 1.0) -> Optional[str]:
         """
         Synthesize speech from text.
         """
@@ -45,37 +45,23 @@ class AudioGenerator:
 
         try:
             text = self._truncate(text)
-            logger.info(f"Generating audio for: '{text[:30]}...' ({len(text.split())} words)")
-            
-            # Generate using TTSEngine
-            # TTSEngine generates a hash-based filename by default, so we might need to move it
-            # or just use TTSEngine's logic.
-            # But the signature here takes specific output_path.
-            
-            # Since TTSEngine.generate_narration returns a Path, 
-            # and handles file creation, let's adapt.
-            
-            # If output_path is provided, we might want to respect it.
-            # TTSEngine.generate_narration takes output_name (basename).
+            logger.info(f"Generating audio for: '{text[:30]}...' ({len(text.split())} words, rate={speaking_rate})")
             
             target_path = Path(output_path)
             output_name = target_path.stem
             
-            # Temporarily override output_dir of engine if needed, or just move file after.
-            # Cleaner: Update TTSEngine to accept absolute path or just use it as is if straightforward.
-            # Let's just blindly use engine and move the file for now, or use engine's output_dir if it matches.
-            
-            generated_path = self.engine.generate_narration(text, output_name=output_name)
-            
-            # If the generated path is not the target path, move it?
-            # TTSEngine appends timestamp.
+            # Pass speaking_rate to generate_narration
+            # Note: We need to verify TTSEngine supports speaking_rate too.
+            generated_path = self.engine.generate_narration(
+                text, 
+                output_name=output_name,
+                speaking_rate=speaking_rate
+            )
             
             if generated_path != target_path:
-                # Ensuring target directory exists
                 target_path.parent.mkdir(parents=True, exist_ok=True)
-                # Rename/Move
                 generated_path.replace(target_path)
-                logger.info(f"Moved audio to {target_path}")
+                logger.debug(f"Moved audio to {target_path}")
                 return str(target_path)
 
             return str(generated_path)

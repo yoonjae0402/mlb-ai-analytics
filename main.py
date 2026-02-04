@@ -16,6 +16,11 @@ import logging
 import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
+import PIL.Image
+
+# Monkey-patch Pillow 10+ to fix MoviePy 'ANTIALIAS' error
+if not hasattr(PIL.Image, 'ANTIALIAS'):
+    PIL.Image.ANTIALIAS = PIL.Image.Resampling.LANCZOS
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -47,7 +52,9 @@ def watch(args):
         # Use away or home team from the game data
         team = game.get("away_name", "") or game.get("home_name", args.team)
 
-        if args.cinematic:
+        if args.viral:
+            video_path = orchestrator.run_viral_for_date(date, team)
+        elif args.cinematic:
             video_path = orchestrator.run_cinematic_for_date(date, team)
         else:
             video_path = orchestrator.run_for_date(date, team)
@@ -73,9 +80,10 @@ def _upload_video(video_path, args, orchestrator, date, team):
     try:
         uploader = YouTubeUploader()
 
-        # Use cinematic script metadata if available
-        script = getattr(orchestrator, "_last_cinematic_script", None)
-        if args.cinematic and script:
+        # Use script metadata from cinematic or viral mode if available
+        script = getattr(orchestrator, "_last_cinematic_script", None) or \
+                 getattr(orchestrator, "_last_viral_script", None)
+        if (args.cinematic or args.viral) and script:
             metadata = script.get("video_metadata", {})
             title = metadata.get("title", f"MLB Recap: {team} - {date}")
             description = metadata.get("description", "")
@@ -154,6 +162,12 @@ def main():
         help='Watch for live game completions and auto-generate videos'
     )
 
+    parser.add_argument(
+        '--viral',
+        action='store_true',
+        help='Use viral pipeline with ESPN-style graphics and win probability model'
+    )
+
     args = parser.parse_args()
 
     # Create necessary directories
@@ -174,7 +188,12 @@ def main():
         yesterday = datetime.now() - timedelta(days=1)
         date = yesterday.strftime('%Y-%m-%d')
 
-    mode = "cinematic" if args.cinematic else "standard"
+    if args.viral:
+        mode = "viral"
+    elif args.cinematic:
+        mode = "cinematic"
+    else:
+        mode = "standard"
 
     logger.info("=" * 60)
     logger.info("MLB VIDEO PIPELINE")
@@ -189,7 +208,9 @@ def main():
     try:
         orchestrator = PipelineOrchestrator()
 
-        if args.cinematic:
+        if args.viral:
+            video_path = orchestrator.run_viral_for_date(date, args.team)
+        elif args.cinematic:
             video_path = orchestrator.run_cinematic_for_date(date, args.team)
         else:
             video_path = orchestrator.run_for_date(date, args.team)

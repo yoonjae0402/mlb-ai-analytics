@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from moviepy.editor import (
     ImageClip, AudioFileClip, CompositeVideoClip,
-    concatenate_videoclips, ColorClip,
+    concatenate_videoclips, ColorClip, VideoClip,
 )
 
 # Monkey patch for Pillow 10+ compatibility with MoviePy 1.x
@@ -243,7 +243,7 @@ class CinematicEngine:
             pil_img = pil_img.resize((vw, vh), Image.LANCZOS)
             return np.array(pil_img)
 
-        clip = ImageClip(make_frame, ismask=False, duration=duration)
+        clip = VideoClip(make_frame, ismask=False, duration=duration)
         clip.fps = self.FPS
         return clip
 
@@ -289,7 +289,7 @@ class CinematicEngine:
 
             return cropped
 
-        clip = ImageClip(make_frame, ismask=False, duration=duration)
+        clip = VideoClip(make_frame, ismask=False, duration=duration)
         clip.fps = self.FPS
         return clip
 

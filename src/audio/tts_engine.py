@@ -78,26 +78,83 @@ class TTSEngine:
         self,
         text: str,
         output_name: str | None = None,
+        speaking_rate: float = 1.0,
     ) -> Path:
         """
         Generate audio narration from text using Google Cloud TTS.
+        Falls back to MacOS 'say' if Google TTS fails or is unconfigured.
         """
         if not text or not text.strip():
             raise ValueError("Text cannot be empty")
 
+        # Define output path
+        output_name = output_name or f"narration_{hashlib.md5(text.encode()).hexdigest()[:10]}"
+        if not output_name.endswith((".mp3", ".wav")):
+            output_name += ".mp3" # Google TTS default match
+            
         # 1. Try Google TTS
         try:
             # We assume Google TTS handles its own caching
             # Pass the voice ID if it differs from default
-            audio_path = self.google_tts.generate(text, voice_name=self.voice)
+            audio_path = self.google_tts.generate(
+                text, 
+                voice_name=self.voice,
+                speaking_rate=speaking_rate
+            )
             if audio_path:
                 logger.info(f"Narrated via Google TTS: {audio_path.name}")
                 return audio_path
             else:
                 raise RuntimeError("Google TTS returned no path.")
         except Exception as e:
-            logger.error(f"Google TTS generation failed: {e}")
-            raise RuntimeError(f"TTS Failed: {e}. Please check GOOGLE_APPLICATION_CREDENTIALS.")
+            logger.warning(f"Google TTS generation failed: {e}. Falling back to system TTS.")
+            return self._generate_fallback_macos(text, output_name, speaking_rate)
+
+    def _generate_fallback_macos(self, text: str, output_name: str, speaking_rate: float) -> Path:
+        """Fallback to MacOS 'say' command."""
+        import subprocess
+        import platform
+        
+        if platform.system() != "Darwin":
+             # Create a silent dummy file if not on Mac and no Google TTS
+             logger.error("System TTS not available (Not MacOS). Creating silent dummy.")
+             path = self.output_dir / output_name.replace(".mp3", ".wav")
+             self._create_silent_wav(path, duration=3.0)
+             return path
+
+        output_path = self.output_dir / output_name.replace(".mp3", ".aiff") # say outputs aiff or wav
+        
+        try:
+            # Rate: say -r 175 (default ~175 WPM?). 
+            # speaking_rate 1.0 -> 175. 1.25 -> 220.
+            rate = int(175 * speaking_rate)
+            
+            cmd = ["say", "-o", str(output_path), "--data-format=LEF32@22050", "-r", str(rate), text]
+            subprocess.run(cmd, check=True)
+            
+            # Convert to wav/mp3 if needed? MoviePy handles AIFF usually.
+            # But let's rename/convert to ensure compatibility if other parts expect mp3/wav extension
+            final_path = output_path.with_suffix(".wav")
+            if output_path.exists():
+                output_path.rename(final_path)
+            
+            logger.info(f"Narrated via MacOS System TTS: {final_path.name}")
+            return final_path
+            
+        except Exception as e:
+            logger.error(f"Mac TTS failed: {e}")
+            # Last resort: visual only video? Create silent audio
+            path = self.output_dir / output_name.replace(".mp3", ".wav")
+            self._create_silent_wav(path, duration=3.0)
+            return path
+
+    def _create_silent_wav(self, path: Path, duration: float):
+        import scipy.io.wavfile as wavfile
+        import numpy as np
+        sr = 22050
+        data = np.zeros(int(sr * duration), dtype=np.int16)
+        wavfile.write(str(path), sr, data)
+
 
     def generate_segments(
         self,

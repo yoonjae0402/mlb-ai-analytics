@@ -1,4 +1,8 @@
 # MLB Video Pipeline - Git Ignore
+# User Requested Ignores
+*.json
+*.jsonl
+*.mp4
 
 # =============================================================================
 # Environment & Secrets

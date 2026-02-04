@@ -25,6 +25,7 @@ from src.models.classifier import PlayerPerformanceLSTM
 from src.models.dataset import MLBDataset, transform_target
 from src.models.trainer import ModelTrainer
 from src.models.explainer import PredictionExplainer
+from src.models.team_predictor import TeamWinPredictor
 
 __all__ = [
     "PlayerPerformanceLSTM",
@@ -32,4 +33,5 @@ __all__ = [
     "transform_target",
     "ModelTrainer",
     "PredictionExplainer",
+    "TeamWinPredictor",
 ]

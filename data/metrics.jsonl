@@ -9,3 +9,10 @@
 {"timestamp": "2026-02-03T15:57:49.352459", "date": "2024-07-04", "team": "Yankees", "success": false, "duration": 9.083747863769531e-05, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": "No games found"}
 {"timestamp": "2026-02-03T15:58:22.866440", "date": "2024-07-04", "team": "Yankees", "success": true, "duration": 0.28748106956481934, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": null}
 {"timestamp": "2026-02-03T15:58:22.877016", "date": "2024-07-04", "team": "Yankees", "success": false, "duration": 0.00013184547424316406, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": "No games found"}
+{"timestamp": "2026-02-03T16:23:24.093380", "date": "2024-07-04", "team": "Yankees", "success": false, "duration": 2.406944990158081, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": "Audio generation failed"}
+{"timestamp": "2026-02-03T16:24:47.729095", "date": "2024-07-04", "team": "Yankees", "success": false, "duration": 1.7610840797424316, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": "Audio generation failed"}
+{"timestamp": "2026-02-03T16:25:47.386132", "date": "2024-07-04", "team": "Yankees", "success": true, "duration": 12.813005924224854, "costs": {"gemini": 0, "audio": 0, "total": 0}, "error": null}
+{"timestamp": "2026-02-03T16:27:05.902362", "date": "2024-07-04", "team": "Yankees", "success": false, "duration": 7.803661108016968, "costs": {"gemini": 0, "nano_banana": 0, "audio": 0, "total": 0}, "error": "Cinematic video rendering failed"}
+{"timestamp": "2026-02-03T16:28:59.038497", "date": "2024-07-04", "team": "Yankees", "success": true, "duration": 67.78158020973206, "costs": {"gemini": 0, "nano_banana": 0, "audio": 0, "total": 0}, "error": null}
+{"timestamp": "2026-02-03T16:40:01.818719", "date": "2024-07-04", "team": "Yankees", "success": true, "duration": 72.5348949432373, "costs": {"gemini": 0, "nano_banana": 0, "audio": 0, "total": 0}, "error": null}
+{"timestamp": "2026-02-03T16:41:30.369412", "date": "2024-07-04", "team": "Yankees", "success": true, "duration": 81.13112902641296, "costs": {"gemini": 0, "nano_banana": 0, "audio": 0, "total": 0}, "error": null}

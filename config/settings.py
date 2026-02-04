@@ -52,6 +52,10 @@ class Settings(BaseSettings):
         default=None,
         description="Google Gemini API key for script generation"
     )
+    gemini_model: str = Field(
+        default="gemini-2.0-flash",
+        description="Gemini model ID for script generation"
+    )
     tts_model: str = Field(
         default="en-US-Neural2-J",
         description="TTS Model/Voice ID"

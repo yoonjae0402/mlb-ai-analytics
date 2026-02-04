@@ -56,13 +56,14 @@ class GoogleTTSGenerator:
             logger.warning(f"Failed to initialize Google TTS client: {e}")
             self.client = None
 
-    def generate(self, text: str, voice_name: Optional[str] = None) -> Optional[Path]:
+    def generate(self, text: str, voice_name: Optional[str] = None, speaking_rate: float = 1.0) -> Optional[Path]:
         """
         Generate audio from text using Google Cloud TTS.
         
         Args:
             text: Text to synthesize.
             voice_name: Voice ID (default: from settings).
+            speaking_rate: Speed of speech (0.25 to 4.0). 1.0 is normal.
             
         Returns:
             Path to generated audio file, or None if generation failed.
@@ -73,8 +74,12 @@ class GoogleTTSGenerator:
         voice_name = voice_name or settings.google_tts_voice
         model_name = "google-tts" # for cache key
         
-        # 1. Check Cache
-        cached_path = self.cache.get(text, voice_name, model_name)
+        # 1. Check Cache (Include speaking_rate in key logic ideally, but cache key logic is inside Cache.get)
+        # We need to hack the cache key or update the Cache class. 
+        # Simpler: Append rate to model_name/voice_name passed to cache to create unique key
+        voice_key = f"{voice_name}_rate_{speaking_rate}"
+        
+        cached_path = self.cache.get(text, voice_key, model_name)
         if cached_path:
             return cached_path
             
@@ -108,11 +113,11 @@ class GoogleTTSGenerator:
             # Select audio config
             audio_config = texttospeech.AudioConfig(
                 audio_encoding=texttospeech.AudioEncoding.MP3,
-                speaking_rate=1.0,
+                speaking_rate=speaking_rate,
                 # Optional: pitch=0.0, volume_gain_db=0.0
             )
 
-            logger.info(f"Calling Google TTS API ({len(text)} chars, {voice_name})")
+            logger.info(f"Calling Google TTS API ({len(text)} chars, {voice_name}, rate={speaking_rate})")
             response = self.client.synthesize_speech(
                 input=synthesis_input,
                 voice=voice_params,
@@ -124,7 +129,7 @@ class GoogleTTSGenerator:
             saved_path = self.cache.save(
                 audio_content, 
                 text, 
-                voice_name, 
+                voice_key, 
                 model_name, 
                 extension="mp3"
             )

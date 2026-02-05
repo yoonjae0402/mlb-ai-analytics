@@ -5,9 +5,9 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    # Database
-    database_url: str = "postgresql+asyncpg://mlb:mlb@localhost:5432/mlb_analytics"
-    database_url_sync: str = "postgresql://mlb:mlb@localhost:5432/mlb_analytics"
+    # Database — defaults to SQLite for local dev; use PostgreSQL in production
+    database_url: str = "sqlite+aiosqlite:///./mlb_analytics.db"
+    database_url_sync: str = "sqlite:///./mlb_analytics.db"
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # API
     api_prefix: str = "/v1"
 
-    model_config = {"env_prefix": "MLB_", "env_file": ".env"}
+    model_config = {"env_prefix": "MLB_", "env_file": ".env", "extra": "ignore"}
 
 
 @lru_cache

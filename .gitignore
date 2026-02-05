@@ -74,6 +74,7 @@ logs/*.jsonl
 logs/api_usage.json
 logs/costs.json
 !logs/.gitkeep
+CLAUDE.md
 
 # =============================================================================
 # Python

@@ -121,6 +121,25 @@ class PlayerLSTM(nn.Module):
 
         return output
 
+    def forward_with_attention(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Forward pass that also returns attention weights.
+
+        Args:
+            x: Input tensor of shape (batch, seq_length, input_size)
+
+        Returns:
+            Tuple of (output, attention_weights) where attention_weights
+            has shape (batch, seq_length, seq_length).
+        """
+        lstm_out, _ = self.lstm(x)
+        attn_out, attn_weights = self.attention(
+            lstm_out, lstm_out, lstm_out, average_attn_weights=True
+        )
+        last_hidden = attn_out[:, -1, :]
+        output = self.fc(last_hidden)
+        return output, attn_weights
+
     def predict(
         self,
         features: np.ndarray | torch.Tensor,

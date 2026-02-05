@@ -186,6 +186,23 @@ class Settings(BaseSettings):
     enable_youtube_upload: bool = Field(default=False)
     dry_run: bool = Field(default=False, description="Run without making API calls")
 
+    # =========================================================================
+    # Real-Time Dashboard & Alerts
+    # =========================================================================
+
+    slack_webhook_url: Optional[str] = Field(
+        default=None,
+        description="Slack webhook URL for win probability alerts"
+    )
+    discord_webhook_url: Optional[str] = Field(
+        default=None,
+        description="Discord webhook URL for win probability alerts"
+    )
+    force_demo_mode: bool = Field(
+        default=False,
+        description="Force demo mode for real-time dashboard (skip API calls)"
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

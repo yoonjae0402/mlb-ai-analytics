@@ -1,11 +1,8 @@
 """
 MLB AI Analytics Platform
 
-Demonstrates:
-- PyTorch/TensorFlow ML Models
-- MLOps Best Practices
-- AWS/GCP Cloud Deployment
-- LLM Fine-tuning & Integration
+Interactive ML platform for baseball analytics with real model training,
+attention visualization, ensemble methods, and live predictions.
 
 Run: streamlit run app.py
 """
@@ -25,15 +22,6 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
 <style>
-    .skill-badge {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: bold;
-        margin: 0.2rem;
-        display: inline-block;
-    }
     .tech-card {
         background: #f8f9fa;
         border-radius: 10px;
@@ -41,10 +29,11 @@ st.markdown("""
         margin: 0.5rem 0;
         border-left: 4px solid #667eea;
     }
+    .tech-card h3 { margin-top: 0; }
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar
+# Sidebar navigation
 with st.sidebar:
     st.title("⚾ MLB AI Analytics")
     st.markdown("---")
@@ -52,38 +41,48 @@ with st.sidebar:
     page = st.radio(
         "Navigation",
         [
-            "🏠 Overview",
-            "🧠 PyTorch Models",
-            "🚀 MLOps Pipeline",
-            "☁️ Cloud Deployment",
-            "🤖 LLM Integration",
-            "📊 Live Demo"
+            "Home",
+            "Model Comparison",
+            "Attention Visualizer",
+            "Ensemble Lab",
+            "Real-Time Dashboard",
+            "Prediction Explorer",
+            "Architecture & Docs",
         ]
     )
 
     st.markdown("---")
-    st.markdown("### Skills Demonstrated")
-    st.markdown("✅ PyTorch/TensorFlow")
-    st.markdown("✅ MLOps/Deployment")
-    st.markdown("✅ AWS/GCP Cloud")
-    st.markdown("✅ LLM Fine-tuning")
+
+    # Training status indicator
+    from src.models.model_registry import get_registry
+    registry = get_registry(st.session_state)
+    if registry.is_trained:
+        st.markdown("**Status:** Models trained")
+        for name, m in registry.models.items():
+            st.caption(f"  {name} — MSE: {m.metrics.get('mse', 0):.4f}")
+    else:
+        st.markdown("**Status:** No models trained")
+        st.caption("Go to Model Comparison to start.")
 
 # Page routing
-if page == "🏠 Overview":
+if page == "Home":
     from pages import overview
     overview.show()
-elif page == "🧠 PyTorch Models":
-    from pages import pytorch_models
-    pytorch_models.show()
-elif page == "🚀 MLOps Pipeline":
-    from pages import mlops_pipeline
-    mlops_pipeline.show()
-elif page == "☁️ Cloud Deployment":
-    from pages import cloud_deployment
-    cloud_deployment.show()
-elif page == "🤖 LLM Integration":
-    from pages import llm_integration
-    llm_integration.show()
-elif page == "📊 Live Demo":
-    from pages import live_demo
-    live_demo.show()
+elif page == "Model Comparison":
+    from pages import model_comparison
+    model_comparison.show()
+elif page == "Attention Visualizer":
+    from pages import attention_viz
+    attention_viz.show()
+elif page == "Ensemble Lab":
+    from pages import ensemble_lab
+    ensemble_lab.show()
+elif page == "Real-Time Dashboard":
+    from pages import realtime_dashboard
+    realtime_dashboard.show()
+elif page == "Prediction Explorer":
+    from pages import prediction_explorer
+    prediction_explorer.show()
+elif page == "Architecture & Docs":
+    from pages import architecture
+    architecture.show()

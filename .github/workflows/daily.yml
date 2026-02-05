@@ -1,0 +1,26 @@
+name: Daily Data Refresh
+
+on:
+  schedule:
+    - cron: "0 10 * * *"  # 10 AM UTC daily
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Refresh data
+        run: python3 -c "from backend.tasks.data_refresh import refresh_daily_data; refresh_daily_data()"
+        env:
+          MLB_DATABASE_URL_SYNC: ${{ secrets.DATABASE_URL }}
+          MLB_DATABASE_URL: ${{ secrets.DATABASE_URL_ASYNC }}

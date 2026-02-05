@@ -1,234 +1,170 @@
 # MLB AI Analytics Platform
 
-End-to-end Machine Learning platform for baseball analytics demonstrating production-grade ML engineering skills.
+![Python](https://img.shields.io/badge/Python-3.13-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.1+-red)
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.108-009688)
 
-## Skills Demonstrated
+An end-to-end ML platform that predicts MLB player performance using deep learning on real Statcast data. Features a dark-themed Next.js dashboard, FastAPI backend, and PostgreSQL database.
 
-| Skill | Technologies |
+## What This Does
+
+Predicts next-game batting stats (hits, HR, RBI, walks) for MLB players using a Bidirectional LSTM with attention trained on real game-by-game data from pybaseball and MLB Stats API. Includes model comparison against XGBoost baselines, ensemble methods, and honest evaluation with confidence intervals.
+
+## Architecture
+
+```
+pybaseball / MLB Stats API
+        ↓
+   PostgreSQL (player_stats, games, predictions)
+        ↓
+   Feature Engineering (rolling averages, trends, Statcast metrics)
+        ↓
+   Models: BiLSTM + Attention │ XGBoost │ Ensemble
+        ↓
+   FastAPI REST API (async, background training)
+        ↓
+   Next.js 14 Dashboard (React Query, Recharts, Tailwind)
+```
+
+## Tech Stack
+
+| Layer | Technologies |
 |-------|-------------|
-| **PyTorch / Deep Learning** | Custom LSTM, Transformers, Training pipelines, Mixed precision |
-| **MLOps / Deployment** | MLflow, Docker, Kubernetes, CI/CD, Model registry |
-| **Cloud (AWS/GCP)** | SageMaker, Lambda, Vertex AI, Terraform IaC |
-| **LLM / Fine-tuning** | OpenAI API, RAG, LoRA fine-tuning, LangChain agents |
+| **Frontend** | Next.js 14, TypeScript, Tailwind CSS, Recharts, React Query |
+| **Backend** | FastAPI, SQLAlchemy (async), Pydantic, Uvicorn |
+| **Database** | PostgreSQL, Alembic migrations |
+| **ML** | PyTorch (BiLSTM + multi-head attention), XGBoost, Optuna |
+| **Data** | pybaseball (Statcast, FanGraphs), MLB Stats API |
+| **Deploy** | Docker Compose, Vercel (frontend), Railway (backend) |
 
-## Quick Start
+## Getting Started
+
+### Docker (recommended)
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/mlb-ai-analytics
-cd mlb-ai-analytics
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run Streamlit app
-streamlit run app.py
+docker-compose up
 ```
+
+This starts PostgreSQL, the FastAPI backend (port 8000), and the Next.js frontend (port 3000).
+
+### Manual Setup
+
+```bash
+# Backend
+pip install -r backend/requirements.txt
+
+# Start PostgreSQL (ensure it's running on port 5432)
+# Create database: createdb mlb_analytics
+
+# Seed database with real MLB data
+python3 -c "from src.data.pipeline import MLBDataPipeline; MLBDataPipeline().seed_database([2024])"
+
+# Start backend
+uvicorn backend.main:app --reload --port 8000
+
+# Frontend (in another terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+### Verify
+
+```bash
+curl localhost:8000/health              # → {"status": "ok"}
+curl "localhost:8000/v1/players/search?q=judge"  # → Aaron Judge
+```
+
+## Key Features
+
+### 7 Interactive Pages
+
+1. **Overview** — Platform status, data freshness, quick stats
+2. **Model Comparison** — Train LSTM & XGBoost side-by-side, live training curves
+3. **Attention Visualizer** — Inspect what the LSTM model focuses on (heatmaps + gradient attribution)
+4. **Ensemble Lab** — Weighted average vs stacking, weight sensitivity analysis
+5. **Real-Time Dashboard** — Live MLB games with win probability tracking
+6. **Prediction Explorer** — Search real players, predict next-game stats
+7. **Architecture & Docs** — System design, API reference, model documentation
+
+### Models
+
+- **PlayerLSTM**: 2-layer bidirectional LSTM with 8-head self-attention, LayerNorm, GELU
+- **XGBoostPredictor**: Gradient-boosted trees with sequence flattening (mean/std/last/trend per feature)
+- **EnsemblePredictor**: Weighted average or Ridge stacking meta-learner
+- **Optuna HPT**: Bayesian hyperparameter optimization for both models
+
+### Real Data Pipeline
+
+- 15 features per game: batting avg, OBP, SLG, wOBA, barrel rate, exit velo, K%, BB%, sprint speed, hard hit rate, park factor, platoon advantage, days rest, launch angle, pull rate
+- 4 prediction targets: hits, home runs, RBI, walks
+- Temporal train/val/test split (no future data leakage)
+- Parquet caching to avoid re-scraping Baseball Savant
+
+## API Reference
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/health` | Health check |
+| POST | `/v1/train` | Train LSTM + XGBoost |
+| GET | `/v1/train/status` | Training progress |
+| POST | `/v1/predict/player` | Predict next-game stats |
+| GET | `/v1/players/search?q=` | Search players |
+| GET | `/v1/players/{id}` | Player profile + stats |
+| POST | `/v1/attention/weights` | Attention heatmap |
+| POST | `/v1/ensemble/predict` | Ensemble prediction |
+| GET | `/v1/games/live` | Live MLB games |
+| GET | `/v1/model/evaluation` | Full evaluation + baselines |
+| GET | `/v1/data/status` | Data freshness |
+| POST | `/v1/tune` | Start Optuna tuning |
+
+## What I Learned
+
+- **Feature engineering matters more than model architecture.** Rolling averages and trend features contributed more to prediction quality than switching between LSTM configurations.
+- **Temporal splits are essential.** Random train/test splits in time-series data produce misleadingly optimistic metrics due to data leakage.
+- **LSTM marginally beats XGBoost on sequential patterns**, but the gap is smaller than expected. XGBoost with engineered features is a strong baseline.
+- **Baseball is inherently noisy.** Single-game predictions have high variance — this is a fundamental property of the sport, not a model limitation.
+
+## Limitations
+
+- Predictions are for the next single game only. Game-to-game variance in baseball is high.
+- Statcast features (barrel rate, exit velo) may be unavailable for some players/seasons.
+- The platform uses free public data sources which may have scraping rate limits.
+- Model accuracy should be compared against baselines (season average, recent average) — not evaluated in isolation.
 
 ## Project Structure
 
 ```
 mlb-ai-analytics/
-├── app.py                      # Streamlit application
-├── pages/                      # Streamlit pages
-│   ├── overview.py             # Project overview
-│   ├── pytorch_models.py       # PyTorch model showcase
-│   ├── mlops_pipeline.py       # MLOps demonstration
-│   ├── cloud_deployment.py     # AWS/GCP integration
-│   ├── llm_integration.py      # LLM & fine-tuning
-│   └── live_demo.py            # Interactive demos
+├── frontend/                   # Next.js 14 dashboard
+│   ├── app/                    # App Router pages (7 pages)
+│   ├── components/             # React components (charts, cards, layout)
+│   ├── hooks/                  # React Query hooks
+│   └── lib/                    # API client, types, utilities
+├── backend/                    # FastAPI application
+│   ├── main.py                 # FastAPI entry point
+│   ├── api/v1/                 # REST endpoints
+│   ├── core/                   # Model service, evaluation, tuning
+│   ├── db/                     # SQLAlchemy models, migrations
+│   └── tasks/                  # Background data refresh
 ├── src/
-│   ├── data/                   # Data fetching & processing
-│   │   └── fetcher.py          # MLB API integration
-│   └── models/                 # PyTorch model definitions
-│       └── predictor.py        # LSTM player predictor
-├── training/
-│   ├── train.py                # Training script
-│   └── configs/                # Training configurations
-│       └── lstm_config.yaml
-├── mlops/
-│   ├── docker/
-│   │   ├── Dockerfile          # Production container
-│   │   └── docker-compose.yml  # Local development
-│   └── kubernetes/
-│       └── deployment.yaml     # K8s manifests
-├── cloud/
-│   ├── aws/
-│   │   └── sagemaker_training.py
-│   └── gcp/
-│       └── vertex_ai_training.py
-├── notebooks/                  # Jupyter experiments
-├── experiments/                # MLflow experiments
-└── models/                     # Saved models
-```
-
-## Features
-
-### 1. PyTorch Deep Learning
-
-- **Custom Architectures**: LSTM with attention, Transformers
-- **Training Pipeline**: Mixed precision, gradient clipping, early stopping
-- **Model Evaluation**: Cross-validation, metrics tracking
-
-```python
-from src.models.predictor import PlayerLSTM
-
-model = PlayerLSTM(
-    input_size=15,
-    hidden_size=128,
-    num_layers=2,
-    output_size=4
-)
-```
-
-### 2. MLOps Pipeline
-
-- **Experiment Tracking**: MLflow integration
-- **Model Registry**: Version control for models
-- **Containerization**: Docker multi-stage builds
-- **Orchestration**: Kubernetes with HPA
-
-```bash
-# Run training with MLflow tracking
-python training/train.py --config training/configs/lstm_config.yaml
-
-# Start MLflow UI
-mlflow ui --port 5000
-
-# Build and run Docker
-docker-compose -f mlops/docker/docker-compose.yml up
-```
-
-### 3. Cloud Deployment
-
-#### AWS SageMaker
-
-```python
-from cloud.aws.sagemaker_training import create_training_job, deploy_model
-
-# Create training job
-estimator = create_training_job(role)
-estimator.fit({"train": "s3://mlb-data/train/"})
-
-# Deploy to endpoint
-predictor = deploy_model(model_data, role, serverless=True)
-```
-
-#### GCP Vertex AI
-
-```python
-from cloud.gcp.vertex_ai_training import create_custom_training_job
-
-job = create_custom_training_job("mlb-predictor-training")
-model = job.run(machine_type="n1-standard-8", accelerator_type="NVIDIA_TESLA_T4")
-```
-
-### 4. LLM Integration
-
-- **RAG Pipeline**: ChromaDB + OpenAI for baseball Q&A
-- **Fine-tuning**: LoRA/QLoRA for domain adaptation
-- **Agents**: LangChain multi-tool agents
-
-```python
-from langchain.chat_models import ChatOpenAI
-from langchain.chains import RetrievalQA
-
-chain = RetrievalQA.from_chain_type(
-    llm=ChatOpenAI(model="gpt-4-turbo"),
-    retriever=vectorstore.as_retriever()
-)
-```
-
-## Training
-
-```bash
-# Train model locally
-python training/train.py \
-    --epochs 100 \
-    --batch-size 64 \
-    --lr 0.0001 \
-    --hidden-size 128
-
-# Train with config file
-python training/train.py --config training/configs/lstm_config.yaml
-```
-
-## Deployment
-
-### Docker
-
-```bash
-# Build image
-docker build -t mlb-predictor -f mlops/docker/Dockerfile .
-
-# Run container
-docker run -p 8000:8000 mlb-predictor
-```
-
-### Kubernetes
-
-```bash
-# Apply manifests
-kubectl apply -f mlops/kubernetes/deployment.yaml
-
-# Check status
-kubectl get pods -l app=mlb-predictor
-```
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/v1/predict/player` | POST | Predict player performance |
-| `/v1/predict/game` | POST | Predict game outcome |
-| `/v1/stats/player` | GET | Get player statistics |
-| `/health` | GET | Health check |
-
-Example request:
-```bash
-curl -X POST http://localhost:8000/v1/predict/player \
-  -H "Content-Type: application/json" \
-  -d '{"player_id": 660271, "features": {"batting_avg": 0.304}}'
-```
-
-## Tech Stack
-
-| Category | Technologies |
-|----------|-------------|
-| ML/DL | PyTorch, scikit-learn, XGBoost |
-| MLOps | MLflow, Docker, Kubernetes, GitHub Actions |
-| Cloud | AWS SageMaker, Lambda, GCP Vertex AI |
-| LLM | OpenAI, LangChain, ChromaDB, PEFT |
-| Data | MLB Stats API, Pandas, NumPy |
-| Web | Streamlit, FastAPI |
-
-## Data Sources
-
-- **MLB Stats API**: Real-time game data, player statistics, standings
-- **Statcast**: Advanced batting and pitching metrics (via pybaseball)
-
-## Development
-
-```bash
-# Run tests
-pytest tests/ -v --cov=src
-
-# Format code
-black src/ training/
-isort src/ training/
-
-# Type checking
-mypy src/
+│   ├── data/                   # Data pipeline, feature engineering
+│   │   ├── pipeline.py         # Real MLB data fetching
+│   │   ├── feature_builder.py  # Feature engineering from DB
+│   │   └── cache_manager.py    # Parquet caching
+│   ├── models/                 # PyTorch + XGBoost models
+│   │   ├── predictor.py        # PlayerLSTM, GameTransformer
+│   │   ├── xgboost_model.py    # XGBoost wrapper
+│   │   ├── ensemble.py         # Ensemble methods
+│   │   └── model_registry.py   # Training orchestration
+│   └── services/               # Real-time game data
+├── docker-compose.yml          # Full stack deployment
+└── training/                   # Standalone training scripts
 ```
 
 ## License
 
 MIT License
-
----
-
-Built with PyTorch, MLflow, AWS/GCP, and LangChain.

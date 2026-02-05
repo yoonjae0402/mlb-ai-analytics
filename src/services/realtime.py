@@ -1,8 +1,7 @@
-"""
-Real-time game data service.
+"""Real-time game data service.
 
-Polls MLB Stats API for live games, computes win probability,
-and falls back to synthetic demo data when no live games are available.
+Polls MLB Stats API for live games and computes win probability.
+Returns real data only — no synthetic fallback.
 """
 
 import logging
@@ -10,24 +9,19 @@ from typing import Optional
 
 import numpy as np
 
-from src.data.synthetic import generate_live_game_data
-
 logger = logging.getLogger(__name__)
 
 
 def fetch_live_games() -> tuple[list[dict], str]:
-    """
-    Fetch live game data. Returns (games, mode).
+    """Fetch live game data. Returns (games, mode).
 
     mode is one of:
-        "live"  - real games from MLB Stats API
+        "live"     - real games currently in progress
         "schedule" - no live games, showing today's schedule
-        "demo" - API unavailable, using synthetic data
+        "off_day"  - no games scheduled today
     """
     try:
         import statsapi
-        live = statsapi.get("game", {})
-        # Try fetching today's scoreboard
         scoreboard = statsapi.schedule()
 
         live_games = [g for g in scoreboard if g.get("status", "") in ("In Progress", "Live")]
@@ -37,56 +31,13 @@ def fetch_live_games() -> tuple[list[dict], str]:
             return games, "live"
 
         if scoreboard:
-            games = [_parse_scheduled_game(g) for g in scoreboard[:8]]
+            games = [_parse_scheduled_game(g) for g in scoreboard[:12]]
             return games, "schedule"
 
     except Exception as e:
-        logger.debug(f"MLB Stats API unavailable: {e}")
+        logger.warning(f"MLB Stats API unavailable: {e}")
 
-    # Fallback to demo mode
-    games = generate_live_game_data(n_games=6)
-    return games, "demo"
-
-
-def advance_inning(game: dict) -> dict:
-    """
-    Simulate advancing a game by one half-inning.
-    Updates score, inning, and win probability.
-    """
-    rng = np.random.RandomState()
-
-    game = dict(game)
-    wp_history = list(game.get("wp_history", [0.5]))
-
-    if game["half"] == "Top":
-        # Away team bats
-        runs = int(rng.choice([0, 0, 0, 0, 0, 1, 1, 2, 3], p=[0.55, 0.10, 0.08, 0.05, 0.02, 0.10, 0.05, 0.03, 0.02]))
-        game["away_score"] += runs
-        game["half"] = "Bottom"
-    else:
-        # Home team bats
-        runs = int(rng.choice([0, 0, 0, 0, 0, 1, 1, 2, 3], p=[0.50, 0.10, 0.08, 0.05, 0.02, 0.12, 0.06, 0.04, 0.03]))
-        game["home_score"] += runs
-        game["half"] = "Top"
-        game["inning"] += 1
-
-    if game["inning"] > 9 and game["home_score"] != game["away_score"]:
-        game["status"] = "Final"
-
-    # Recompute win probability
-    score_diff = game["home_score"] - game["away_score"]
-    leverage = min(game["inning"] / 9.0, 1.0)
-    home_wp = 1.0 / (1.0 + np.exp(-0.6 * score_diff * (0.5 + 0.5 * leverage)))
-    home_wp = float(np.clip(home_wp + rng.randn() * 0.03, 0.02, 0.98))
-
-    if game["status"] == "Final":
-        home_wp = 1.0 if game["home_score"] > game["away_score"] else 0.0
-
-    game["home_win_prob"] = home_wp
-    wp_history.append(home_wp)
-    game["wp_history"] = wp_history
-
-    return game
+    return [], "off_day"
 
 
 def compute_win_probability(
@@ -95,15 +46,10 @@ def compute_win_probability(
     inning: float,
     is_home_batting: bool = True,
 ) -> float:
-    """
-    Simple logistic win probability model.
-
-    Based on score differential and game progress.
-    """
+    """Simple logistic win probability model based on score differential and game progress."""
     diff = home_score - away_score
     progress = min(inning / 9.0, 1.0)
 
-    # Home team batting advantage
     if is_home_batting:
         diff += 0.1
 
@@ -148,4 +94,8 @@ def _parse_scheduled_game(g: dict) -> dict:
         "status": g.get("status", "Scheduled"),
         "home_win_prob": 0.5,
         "wp_history": [0.5],
+        "home_probable_pitcher": g.get("home_probable_pitcher", "TBD"),
+        "away_probable_pitcher": g.get("away_probable_pitcher", "TBD"),
+        "game_datetime": g.get("game_datetime", ""),
+        "venue": g.get("venue_name", ""),
     }

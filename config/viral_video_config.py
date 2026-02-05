@@ -13,9 +13,11 @@ class ViralVideoConfig:
     # --- Audio Settings ---
     AUDIO_BITRATE_KBPS = 192  # High quality
     AUDIO_SAMPLE_RATE = 44100
-    TTS_VOICE = "en-US-Neural2-J" # Energetic Male
-    TTS_SPEAKING_RATE = 1.15
-    TTS_PITCH = 1.5
+    TTS_VOICE = "en-US-Neural2-D"  # Natural deep male voice
+    TTS_SPEAKING_RATE = 1.05  # Slightly faster than normal (natural pace)
+    TTS_PITCH = 0.0  # Natural pitch (no artificial elevation)
+    TTS_EFFECTS_PROFILE = ["headphone-class-device"]
+    TTS_SAMPLE_RATE = 48000  # High quality
     
     # --- Visual Settings ---
     VIDEO_WIDTH = 1080

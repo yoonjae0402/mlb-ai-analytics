@@ -71,10 +71,9 @@ class StatRenderer:
             img = self._create_tech_bg()
 
         # 2. Render Layout
-        # 2. Render Layout
         if scene_type == "hook":
             return self.render_hook(img, scene, game_data)
-        elif scene_type == "scoreboard":
+        elif scene_type in ("scoreboard", "score"):
             return self.render_scoreboard(img, game_data)
         elif scene_type in ["top_hitter", "top_pitcher", "player_watch_1", "player_watch_2", "player_spotlight"]:
             return self.render_player_spotlight(img, scene, game_data)
@@ -85,10 +84,11 @@ class StatRenderer:
         elif scene_type == "prediction_meter":
             return self.render_prediction_meter(img, prediction_data)
         elif scene_type in ["factor_1", "factor_2", "factor_3"]:
-            # Maybe a simplified factor card? For now reuse prediction meter or generic
-            # Let's make a specific "factor_card" view if we want, or just generic text.
-            # Using generic text for factors is okay, or reuse prediction meter's factor panel style.
-            return self.render_prediction_meter(img, prediction_data) 
+            return self.render_factor_card(img, scene, prediction_data)
+        elif scene_type == "transition":
+            return self.render_transition(img, scene)
+        elif scene_type == "recap":
+            return self.render_recap(img, scene, game_data)
         elif scene_type == "cta":
             return self.render_cta(img, scene)
         else:
@@ -97,13 +97,31 @@ class StatRenderer:
     def render_hook(self, img: Image.Image, scene: Dict, game_data: Dict) -> Image.Image:
         draw = ImageDraw.Draw(img)
         visual = scene.get("visual", {})
-        
-        # Giant Impact Text
-        main_text = visual.get("main_text", "HOOK TEXT").upper()
-        self._draw_centered_text(img, main_text, self.font_stat_huge, y_offset=600, color=self.COLOR_ACCENT_1, stroke_width=4, stroke_fill="black")
-        
-        # Subtext
+
+        # Use real team name from game_data if visual text is generic
+        main_text = visual.get("main_text", "").upper()
+        if not main_text or main_text in ("HOOK TEXT", "HOOK"):
+            winner = game_data.get("winner", "")
+            if winner:
+                main_text = f"{winner.split()[-1].upper()} WIN!"
+            else:
+                main_text = "BIG WIN!"
+
+        # Choose font size based on text length to prevent clipping
+        if len(main_text) <= 8:
+            hook_font = self.font_stat_huge  # 150pt fits short text
+        else:
+            hook_font = self.font_header     # 90pt for longer text
+
+        self._draw_centered_text(img, main_text, hook_font, y_offset=600, color=self.COLOR_ACCENT_1, stroke_width=4, stroke_fill="black")
+
+        # Subtext - show score if available
         sub_text = visual.get("sub_text", "")
+        if not sub_text:
+            away_score = game_data.get('away_score', '')
+            home_score = game_data.get('home_score', '')
+            if away_score != '' and home_score != '':
+                sub_text = f"{away_score}-{home_score}"
         if sub_text:
              self._draw_centered_text(img, sub_text, self.font_header, y_offset=900, color="white", stroke_width=2, stroke_fill="black")
 
@@ -111,55 +129,122 @@ class StatRenderer:
 
     def render_scoreboard(self, img: Image.Image, game_data: Dict) -> Image.Image:
         draw = ImageDraw.Draw(img)
-        
-        # Glassmorphism Container
-        box_rect = (100, 500, 980, 1100)
+
+        box_rect = (80, 470, 1000, 1100)
         self._draw_glass_panel(img, box_rect)
-        
-        # Data
+
         away_score = game_data.get('away_score', 0)
         home_score = game_data.get('home_score', 0)
         away_id = game_data.get('away_team_id')
         home_id = game_data.get('home_team_id')
-        
-        # Logos & Text
-        y_away = 600
-        y_home = 850
-        
+
+        y_away = 560
+        y_home = 830
+
         self._draw_team_row(img, away_id, game_data.get('away_team'), away_score, y_away)
+
+        # Divider line
+        draw.line([(150, 760), (950, 760)], fill=(255, 255, 255, 40), width=2)
+
         self._draw_team_row(img, home_id, game_data.get('home_team'), home_score, y_home)
-        
-        # Final Label
+
         self._draw_centered_text(img, "FINAL SCORE", self.font_sub, y_offset=420, color=self.COLOR_ACCENT_1)
-        
+
         return img
 
     def render_player_spotlight(self, img: Image.Image, scene: Dict, game_data: Dict) -> Image.Image:
         """
-        Layout: Player Image (Cutout ideally) -> Stat Block overlaid.
+        Layout: Player headshot (top) + name + stats card (bottom).
+        Falls back to visual data from the script if game_data fields missing.
         """
         draw = ImageDraw.Draw(img)
         visual = scene.get("visual", {})
-        player_name = visual.get("player_to_show", "") or "Player Spotlight"
-        
-        # 1. Try to fetch player headshot/action shot (Placeholder logic for real fetch)
-        # Assuming asset_manager has basic logic, we heavily rely on valid player_id logic which might be missing in MVP scripts.
-        # Fallback: Just text or generic silhouette if name not found.
-        
+        scene_type = scene.get("scene_type", "")
+
+        # Pull real player data from game_data based on scene type
+        player_name = visual.get("player_to_show", "")
+        player_stats = visual.get("stat_to_show", "")
+        player_impact = ""
+        player_id = None
+
+        if scene_type in ("top_hitter", "player_watch_1"):
+            hitter = game_data.get("top_hitter", {})
+            if hitter.get("name"):
+                player_name = player_name or hitter["name"]
+                player_stats = player_stats or hitter.get("stats", "")
+                player_impact = hitter.get("impact", "")
+                player_id = hitter.get("id")
+        elif scene_type in ("top_pitcher", "player_watch_2"):
+            pitcher = game_data.get("top_pitcher", {})
+            if pitcher.get("name"):
+                player_name = player_name or pitcher["name"]
+                player_stats = player_stats or pitcher.get("stats", "")
+                player_impact = pitcher.get("impact", "")
+                player_id = pitcher.get("id")
+
+        if not player_name:
+            player_name = "Player Spotlight"
+
+        # Fix 2: Fetch and paste player headshot on top half
+        if player_id:
+            try:
+                headshot_path = self.asset_manager.fetch_player_headshot(player_id)
+                if headshot_path:
+                    headshot = Image.open(headshot_path).convert("RGBA")
+                    h_w, h_h = headshot.size
+                    scale = min(500 / h_h, 600 / h_w)
+                    new_size = (int(h_w * scale), int(h_h * scale))
+                    headshot = headshot.resize(new_size, Image.LANCZOS)
+                    x = (self.WIDTH - new_size[0]) // 2
+                    img.paste(headshot, (x, 350), headshot)
+            except Exception as e:
+                logger.warning(f"Could not load player headshot: {e}")
+
+        # Get player's team for display
+        player_team = ""
+        if scene_type == "top_hitter":
+            player_team = game_data.get("top_hitter", {}).get("team", "")
+        elif scene_type == "top_pitcher":
+            player_team = game_data.get("top_pitcher", {}).get("team", "")
+
+        # Header shows player's team
+        if player_team:
+            header_label = player_team.upper()
+        else:
+            header_label = "GAME LEADER"
+
         # Draw Tech Card at bottom
-        card_rect = (50, 1000, 1030, 1600)
+        card_rect = (50, 1000, 1030, 1650)
         self._draw_glass_panel(img, card_rect)
-        
-        # Name
-        draw.text((100, 1050), str(player_name).upper(), font=self.font_header, fill=self.COLOR_ACCENT_1)
-        
-        # Stats
-        stats = str(visual.get("stat_to_show", "")).split(",")
-        y_stat = 1200
-        for stat in stats:
-            draw.text((100, y_stat), stat.strip(), font=self.font_sub, fill="white")
-            y_stat += 80
-            
+
+        # Header label above player name
+        draw.text((100, 960), header_label, font=self.font_body, fill=self.COLOR_TEXT_SUB)
+
+        # Fix 4: Player name - use text fit to prevent overflow
+        self._draw_text_with_fit(
+            img, str(player_name).upper(), self.font_header,
+            (80, 1030, 1010, 1160),
+            color=self.COLOR_ACCENT_1, align="left"
+        )
+
+        # Stats line (skip for player_watch to avoid duplicate content)
+        if player_stats and scene_type not in ("player_watch_1", "player_watch_2"):
+            stats_parts = str(player_stats).split(",")
+            y_stat = 1200
+            for stat in stats_parts:
+                draw.text((100, y_stat), stat.strip(), font=self.font_sub, fill="white")
+                y_stat += 70
+        elif scene_type in ("player_watch_1", "player_watch_2"):
+            # Show narration context instead of repeating stats
+            narration = scene.get("narration", "")
+            if narration:
+                preview = narration[:80]
+                self._draw_text_with_fit(img, preview, self.font_body, (100, 1200, 1000, 1400), color="white")
+
+        # Impact line
+        if player_impact:
+            self._draw_text_with_fit(img, player_impact, self.font_body, (100, 1400, 1000, 1600), color=self.COLOR_TEXT_SUB)
+
         return img
 
     def render_key_moment(self, img: Image.Image, scene: Dict, game_data: Dict) -> Image.Image:
@@ -183,22 +268,32 @@ class StatRenderer:
 
     def render_standings(self, img: Image.Image, scene: Dict, game_data: Dict) -> Image.Image:
         """
-        Visual for Standings/Impact scene.
+        Visual for Standings/Impact scene with real team names.
         """
         draw = ImageDraw.Draw(img)
-        
+
         self._draw_centered_text(img, "PLAYOFF IMPACT", self.font_header, y_offset=400, color=self.COLOR_ACCENT_1)
-        
-        # Mock Standings Table
+
         self._draw_glass_panel(img, (100, 600, 980, 1400))
-        
+
+        # Show winner and loser with real names
+        winner = game_data.get('winner', game_data.get('home_team', 'Team'))
+        home_team = game_data.get('home_team', 'Home')
+        away_team = game_data.get('away_team', 'Away')
+        loser = away_team if winner == home_team else home_team
+
         y_start = 700
-        draw.text((150, y_start), f"1. {game_data.get('home_team')}", font=self.font_sub, fill="white")
+        draw.text((150, y_start), winner.upper(), font=self.font_sub, fill="white")
         draw.text((800, y_start), "W", font=self.font_sub, fill=self.COLOR_ACCENT_1)
-        
-        draw.text((150, y_start + 100), f"2. {game_data.get('away_team')}", font=self.font_sub, fill="gray")
-        draw.text((800, y_start + 100), "--", font=self.font_sub, fill="gray")
-        
+
+        draw.text((150, y_start + 100), loser.upper(), font=self.font_sub, fill="gray")
+        draw.text((800, y_start + 100), "L", font=self.font_sub, fill=self.COLOR_ACCENT_2)
+
+        # Standings impact text
+        impact_text = game_data.get('standings_impact', '')
+        if impact_text:
+            self._draw_text_with_fit(img, impact_text, self.font_body, (150, y_start + 250, 930, y_start + 550), color=self.COLOR_TEXT_SUB)
+
         return img
 
     def render_prediction_meter(self, img: Image.Image, prediction: Dict) -> Image.Image:
@@ -236,6 +331,86 @@ class StatRenderer:
 
         return img
 
+    def render_factor_card(self, img: Image.Image, scene: Dict, prediction: Optional[Dict] = None) -> Image.Image:
+        """Render prediction factor with visual indicators."""
+        draw = ImageDraw.Draw(img)
+        visual = scene.get("visual", {})
+        scene_type = scene.get("scene_type", "factor_1")
+
+        factor_idx = int(scene_type.split("_")[-1]) - 1 if "_" in scene_type else 0
+
+        factor_name = visual.get("main_text", "FACTOR")
+        factor_detail = ""
+        factor_impact = ""
+
+        if prediction:
+            factors = prediction.get("factors", [])
+            if factor_idx < len(factors):
+                f = factors[factor_idx]
+                factor_name = f.get("factor", factor_name).upper()
+                factor_detail = f.get("detail", "")
+                factor_impact = f.get("impact", "")
+
+        icon_colors = [
+            (0, 200, 255, 255),    # Blue
+            (255, 200, 0, 255),    # Gold
+            (0, 255, 136, 255),    # Green
+        ]
+        icon_color = icon_colors[factor_idx] if factor_idx < 3 else self.COLOR_ACCENT_1
+
+        # Badge
+        badge_text = f"FACTOR {factor_idx + 1} OF 3"
+        self._draw_centered_text(img, badge_text, self.font_body, y_offset=450, color=self.COLOR_TEXT_SUB)
+
+        # Title
+        self._draw_centered_text(img, factor_name, self.font_header, y_offset=600, color="white", stroke_width=2, stroke_fill="black")
+
+        # Detail card
+        if factor_detail:
+            self._draw_glass_panel(img, (100, 800, 980, 1200))
+            self._draw_text_with_fit(img, factor_detail, self.font_sub, (150, 850, 930, 1150))
+
+        # Impact bar
+        if factor_impact:
+            impact_str = str(factor_impact).lower()
+            if any(w in impact_str for w in ["high", "strong", "major", "dominant"]):
+                bar_fill = 0.85
+            elif any(w in impact_str for w in ["moderate", "medium", "solid"]):
+                bar_fill = 0.6
+            else:
+                bar_fill = 0.4
+
+            bar_y = 1280
+            bar_x1, bar_x2 = 200, 880
+            bar_width = bar_x2 - bar_x1
+
+            draw.rounded_rectangle((bar_x1, bar_y, bar_x2, bar_y + 30), radius=15, fill=(50, 50, 50, 200))
+            fill_x2 = bar_x1 + int(bar_width * bar_fill)
+            draw.rounded_rectangle((bar_x1, bar_y, fill_x2, bar_y + 30), radius=15, fill=icon_color)
+
+            self._draw_centered_text(img, f"IMPACT: {factor_impact.upper()}", self.font_body, y_offset=1330, color=self.COLOR_TEXT_SUB)
+
+        return img
+
+    def render_recap(self, img: Image.Image, scene: Dict, game_data: Dict) -> Image.Image:
+        """Render game recap summary scene."""
+        draw = ImageDraw.Draw(img)
+        visual = scene.get("visual", {})
+
+        winner = game_data.get('winner', 'Winner')
+        winner_short = winner.split()[-1].upper()
+        home_score = game_data.get('home_score', 0)
+        away_score = game_data.get('away_score', 0)
+
+        # Main result text
+        main_text = visual.get("main_text", f"{winner_short} WIN")
+        sub_text = visual.get("sub_text", f"{max(home_score, away_score)}-{min(home_score, away_score)} FINAL")
+
+        self._draw_centered_text(img, main_text, self.font_stat_huge, y_offset=700, color=self.COLOR_ACCENT_1, stroke_width=4, stroke_fill="black")
+        self._draw_centered_text(img, sub_text, self.font_header, y_offset=950, color="white", stroke_width=2, stroke_fill="black")
+
+        return img
+
     def render_faceoff(self, img: Image.Image, scene: Dict, game_data: Dict, prediction: Dict) -> Image.Image:
         # Split screen effect for matchups
         draw = ImageDraw.Draw(img)
@@ -253,8 +428,36 @@ class StatRenderer:
 
     def render_cta(self, img: Image.Image, scene: Dict) -> Image.Image:
         draw = ImageDraw.Draw(img)
-        self._draw_centered_text(img, "FOLLOW FOR DAILY", self.font_header, y_offset=700, color="white")
-        self._draw_centered_text(img, "AI PREDICTIONS", self.font_stat_huge, y_offset=850, color=self.COLOR_ACCENT_1)
+        self._draw_centered_text(img, "FOLLOW FOR DAILY", self.font_sub, y_offset=700, color="white")
+        self._draw_centered_text(img, "AI PREDICTIONS", self.font_header, y_offset=850, color=self.COLOR_ACCENT_1, stroke_width=3, stroke_fill="black")
+        self._draw_centered_text(img, "LIKE + FOLLOW", self.font_body, y_offset=1050, color=self.COLOR_TEXT_SUB)
+        return img
+
+    def render_transition(self, img: Image.Image, scene: Dict) -> Image.Image:
+        """Render transition scene with UP NEXT visual."""
+        draw = ImageDraw.Draw(img)
+
+        # Dark gradient overlay band
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        draw_ov = ImageDraw.Draw(overlay)
+        for y in range(800, 1120):
+            alpha = int(160 * (1 - abs(y - 960) / 160))
+            alpha = max(0, alpha)
+            draw_ov.line([(0, y), (self.WIDTH, y)], fill=(0, 0, 0, alpha))
+        img = Image.alpha_composite(img, overlay)
+
+        draw = ImageDraw.Draw(img)
+        draw.line([(200, 880), (880, 880)], fill=self.COLOR_ACCENT_1, width=4)
+
+        self._draw_centered_text(img, "UP NEXT", self.font_header, y_offset=910, color=self.COLOR_ACCENT_1, stroke_width=2, stroke_fill="black")
+
+        narration = scene.get("narration", "")
+        if narration:
+            preview = " ".join(narration.split()[:6]).upper()
+            if len(narration.split()) > 6:
+                preview += "..."
+            self._draw_centered_text(img, preview, self.font_sub, y_offset=1030, color=self.COLOR_TEXT_SUB)
+
         return img
 
     def _render_generic_text(self, img: Image.Image, scene: Dict) -> Image.Image:
@@ -266,12 +469,26 @@ class StatRenderer:
     # --- Helpers ---
     
     def _create_tech_bg(self) -> Image.Image:
-        # Fallback gradient
+        """Smooth radial gradient background, no scan lines."""
         img = Image.new("RGBA", (self.WIDTH, self.HEIGHT), self.COLOR_BG)
-        draw = ImageDraw.Draw(img)
-        # Grid lines
-        for y in range(0, self.HEIGHT, 100):
-            draw.line([(0, y), (self.WIDTH, y)], fill=(255, 255, 255, 10), width=1)
+
+        center_x, center_y = self.WIDTH // 2, self.HEIGHT // 2
+        max_radius = int(math.sqrt(center_x**2 + center_y**2))
+
+        overlay = Image.new("RGBA", (self.WIDTH, self.HEIGHT), (0, 0, 0, 0))
+        draw_ov = ImageDraw.Draw(overlay)
+
+        steps = 60
+        for i in range(steps):
+            t = i / steps
+            alpha = int(35 * t)
+            rx = int(max_radius * (1 - t))
+            ry = int(max_radius * (1 - t))
+            if rx > 0 and ry > 0:
+                bbox = (center_x - rx, center_y - ry, center_x + rx, center_y + ry)
+                draw_ov.ellipse(bbox, fill=(255, 255, 255, alpha))
+
+        img = Image.alpha_composite(img, overlay)
         return img
 
 
@@ -378,23 +595,22 @@ class StatRenderer:
 
     def _draw_team_row(self, img, team_id, name, score, y_pos):
         draw = ImageDraw.Draw(img)
-        # Logo
+        # Logo - reduced to 120px
         logo_path = self.asset_manager.fetch_team_logo(team_id)
         if logo_path:
-            logo = Image.open(logo_path).convert("RGBA").resize((150, 150))
-            img.paste(logo, (150, y_pos), logo)
-            
-        # Name (Use fit helper to avoid truncation)
-        # Box for name: x=320, width=500
+            logo = Image.open(logo_path).convert("RGBA").resize((120, 120))
+            img.paste(logo, (150, y_pos + 15), logo)
+
+        # Name - use font_sub (45pt) to prevent overflow
         self._draw_text_with_fit(
-            img, 
-            str(name).upper(), 
-            self.font_header, 
-            (320, y_pos, 820, y_pos + 150), 
+            img,
+            str(name).upper(),
+            self.font_sub,
+            (290, y_pos, 800, y_pos + 150),
             align="left"
         )
 
-        # Score
+        # Score - positioned further right
         score_str = str(score)
-        draw.text((850, y_pos + 40), score_str, font=self.font_header, fill=self.COLOR_ACCENT_1)
+        draw.text((880, y_pos + 30), score_str, font=self.font_header, fill=self.COLOR_ACCENT_1)
 

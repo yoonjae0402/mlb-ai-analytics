@@ -341,15 +341,14 @@ class MLBDataFetcher:
     def get_complete_game_data(self, game_id: int) -> Dict[str, Any]:
         """
         Fetch ALL necessary data for viral video generation.
-        Validates critical fields to avoid "None" values in output.
+        Uses the full game endpoint which provides gameData/liveData structure
+        with team names, scores, boxscore, and play-by-play data.
         """
-        # Fetch full rich data payload
         try:
-            full_data = self.get_game_data(game_id)
-            if not full_data:
-                 # Try direct fetch if method above failed inside (it usually calls statsapi)
-                 full_data = statsapi.get("game", {"gamePk": game_id})
-            
+            # Use the game endpoint directly - it returns the full structure
+            # with gameData (teams, venue) and liveData (linescore, boxscore, plays)
+            full_data = statsapi.get("game", {"gamePk": game_id})
+
             if not full_data:
                  raise ValueError("Empty response from MLB API")
         except Exception as e:
@@ -372,13 +371,17 @@ class MLBDataFetcher:
             
             home_score = linescore.get('teams', {}).get('home', {}).get('runs', 0)
             away_score = linescore.get('teams', {}).get('away', {}).get('runs', 0)
-            
-            # 2. Extract Top Performers (Now richer)
-            top_hitter = self._get_top_hitter(boxscore)
-            top_pitcher = self._get_winning_pitcher(boxscore, live_data)
-            
-            # 3. Key Moments
+
+            # Determine winner
+            winning_side = 'home' if home_score > away_score else 'away'
             winner = home_team if home_score > away_score else away_team
+            loser = away_team if home_score > away_score else home_team
+
+            # 2. Extract Top Performers (with team info, pitcher from winning team only)
+            top_hitter = self._get_top_hitter(boxscore, full_data)
+            top_pitcher = self._get_top_pitcher(boxscore, full_data, winning_side=winning_side)
+
+            # 3. Key Moments
             key_moment = self._find_key_moment(live_data)
             if not key_moment:
                 key_moment = {"description": f"{winner} secures the victory!", "score_change": "Final"}
@@ -394,10 +397,12 @@ class MLBDataFetcher:
                 "home_team_id": home_meta.get('id'),
                 "away_team_id": away_meta.get('id'),
                 "winner": winner,
+                "loser": loser,
+                "winning_side": winning_side,
                 "top_hitter": top_hitter,
                 "top_pitcher": top_pitcher,
                 "key_moment": key_moment,
-                "standings_impact": "Crucial win for playoff race", # Placeholder for now
+                "standings_impact": self._compute_standings_impact(winner, full_data),
                 "boxscore": boxscore
             }
             
@@ -410,78 +415,121 @@ class MLBDataFetcher:
             logger.error(f"Failed to parse complete game data: {e}")
             raise DataFetchError(f"Data parsing failed: {e}")
 
-    def _get_top_hitter(self, boxscore: Dict) -> Dict:
-        """Find player with most offensive impact (Hits + HR + RBI)."""
+    def _compute_standings_impact(self, winner: str, game_data: dict) -> str:
+        """Generate dynamic standings impact text from actual standings."""
+        try:
+            game_date_str = game_data.get('gameData', {}).get('datetime', {}).get('dateTime', '')
+            season = int(game_date_str[:4]) if game_date_str else datetime.now().year
+
+            standings = self.get_standings(season)
+            if not standings:
+                return "Big win in the standings race"
+
+            for div_id, div_data in standings.items():
+                teams = div_data.get('teams', [])
+                for team in teams:
+                    if winner.lower() in team.get('name', '').lower():
+                        wins = team.get('w', 0)
+                        losses = team.get('l', 0)
+                        div_rank = team.get('div_rank', '')
+                        gb = team.get('gb', '-')
+                        wc_gb = team.get('wc_gb', '')
+                        div_name = div_data.get('div_name', '')
+
+                        if div_rank == '1' or gb == '-':
+                            return f"Holds first place in the {div_name.split()[-1]} ({wins}-{losses})"
+                        elif gb != '-' and float(str(gb).replace('+', '')) <= 3.0:
+                            return f"Closes to {gb} GB in the {div_name.split()[-1]} ({wins}-{losses})"
+                        elif wc_gb and wc_gb != '-' and float(str(wc_gb).replace('+', '')) <= 5.0:
+                            return f"Wild Card push - {wc_gb} GB ({wins}-{losses})"
+                        else:
+                            return f"Improves to {wins}-{losses} on the season"
+
+            return "Big win in the standings race"
+        except Exception as e:
+            logger.warning(f"Could not compute standings impact: {e}")
+            return "Big win in the standings race"
+
+    def _get_top_hitter(self, boxscore: Dict, game_data: Dict = None) -> Dict:
+        """Find player with most offensive impact (Hits + HR + RBI). Includes team info."""
         best_player = None
         best_score = -1
-        
+
         teams = boxscore.get('teams', {})
+        teams_info = game_data.get('gameData', {}).get('teams', {}) if game_data else {}
+
         for side in ['home', 'away']:
+            team_name = teams_info.get(side, {}).get('name', side.title())
             players = teams.get(side, {}).get('players', {})
+
             for pid, p_data in players.items():
                 stats = p_data.get('stats', {}).get('batting', {})
                 if not stats: continue
-                
+
                 # Simple Impact Score
                 hits = stats.get('hits', 0)
                 hr = stats.get('homeRuns', 0)
                 rbi = stats.get('rbi', 0)
                 impact = (hits * 1) + (hr * 3) + (rbi * 2)
-                
+
                 if impact > best_score:
                     best_score = impact
-                    avg = stats.get('avg', '.000')
-                    # Construct stat string
                     stat_line = f"{hits} Hits, {hr} HR, {rbi} RBI"
                     best_player = {
                         "name": p_data.get('person', {}).get('fullName', 'Unknown'),
+                        "team": team_name,
+                        "team_side": side,
                         "stats": stat_line,
                         "impact": f"Huge {hr} HR performance" if hr > 0 else f"{hits} Hits led the way",
                         "id": p_data.get('person', {}).get('id')
                     }
-        
+
         if not best_player:
             return self.fallback_handler.get_generic_player_data("Hitter")
 
-        # Fetch Photo
         best_player['photo_url'] = self.photo_fetcher.fetch_player_photo(best_player['id'], best_player['name'])
         return best_player
 
-    def _get_winning_pitcher(self, boxscore: Dict, live_data: Dict = None) -> Dict:
-        """Find winning or best pitcher."""
-        # Check 'decisions' in liveData if available? 
-        # API usually puts W/L on pitcher stats.
-        
+    def _get_top_pitcher(self, boxscore: Dict, game_data: Dict = None, winning_side: str = None) -> Dict:
+        """
+        Find best pitcher. If winning_side is provided, only considers that team.
+        Includes team info in the result.
+        """
         best_pitcher = None
         best_score = -1
-        
+
         teams = boxscore.get('teams', {})
-        for side in ['home', 'away']:
+        teams_info = game_data.get('gameData', {}).get('teams', {}) if game_data else {}
+
+        # If winning_side specified, only look at that team
+        sides_to_check = [winning_side] if winning_side else ['home', 'away']
+
+        for side in sides_to_check:
+            team_name = teams_info.get(side, {}).get('name', side.title())
             players = teams.get(side, {}).get('players', {})
+
             for pid, p_data in players.items():
                 stats = p_data.get('stats', {}).get('pitching', {})
                 if not stats: continue
-                
-                # Prefer winner
-                is_winner = 'W' in stats.get('note', '') # API specific? 
-                # statsapi often has 'wins' incremented? Hard to tell from single game box.
-                
+
                 # Score based on K, IP, ER
                 k = stats.get('strikeOuts', 0)
                 ip = float(stats.get('inningsPitched', 0.0))
                 er = stats.get('earnedRuns', 100)
-                
+
                 score = (k * 2) + (ip * 1) - (er * 2)
                 if score > best_score:
                     best_score = score
                     stat_line = f"{ip} IP, {k} K, {er} ER"
                     best_pitcher = {
                         "name": p_data.get('person', {}).get('fullName', 'Unknown'),
+                        "team": team_name,
+                        "team_side": side,
                         "stats": stat_line,
                         "impact": "Dominant on the mound",
                         "id": p_data.get('person', {}).get('id')
                     }
-                    
+
         if not best_pitcher:
             return self.fallback_handler.get_generic_player_data("Pitcher")
 

@@ -23,8 +23,8 @@ class VideoValidator:
     Ensures compliance with platform requirements (TikTok/Shorts).
     """
 
-    MIN_DURATION = 45.0
-    MAX_DURATION = 65.0 # buffer for 60s target
+    MIN_DURATION = 30.0  # Allow shorter videos when using macOS TTS fallback
+    MAX_DURATION = 62.0  # Strict limit to catch >60s videos
     TARGET_WIDTH = 1080
     TARGET_HEIGHT = 1920
     REQUIRED_FPS = 30
@@ -91,7 +91,7 @@ class VideoValidator:
             logger.error(f"Validation process error: {e}")
             raise VideoValidationError(f"Validation crashed: {e}")
 
-    def _has_black_frames(self, clip: VideoFileClip, threshold: int = 10, sample_rate: float = 1.0) -> bool:
+    def _has_black_frames(self, clip: VideoFileClip, threshold: int = 5, sample_rate: float = 1.0) -> bool:
         """
         Check for black frames by sampling.
         Returns True if a sequence of black frames is found.

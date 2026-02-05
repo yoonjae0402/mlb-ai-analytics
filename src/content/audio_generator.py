@@ -9,7 +9,7 @@ from src.utils.cost_tracker import CostTracker
 logger = logging.getLogger(__name__)
 
 # Shorts videos should be under 60s.  At ~150 WPM, 80 words ≈ 32s of speech.
-MAX_SCRIPT_WORDS = 80
+MAX_SCRIPT_WORDS = 300
 
 
 class AudioGenerator:

@@ -129,7 +129,7 @@ class TTSEngine:
             # speaking_rate 1.0 -> 175. 1.25 -> 220.
             rate = int(175 * speaking_rate)
             
-            cmd = ["say", "-o", str(output_path), "--data-format=LEF32@22050", "-r", str(rate), text]
+            cmd = ["say", "-o", str(output_path), "-r", str(rate), text]
             subprocess.run(cmd, check=True)
             
             # Convert to wav/mp3 if needed? MoviePy handles AIFF usually.

@@ -1,49 +1,197 @@
 """
-MLB Video Pipeline - Player Performance Predictor
+MLB AI Analytics - PyTorch Models
 
-PyTorch neural network model for predicting player statistics.
-Uses historical performance data to forecast future performance.
+Neural network models for predicting player and game performance.
 
-Usage:
-    from src.models.predictor import PlayerPredictor
-
-    # Initialize model
-    model = PlayerPredictor(input_features=15, hidden_dim=64)
-
-    # Forward pass
-    predictions = model(input_tensor)
-
-    # Load trained model
-    model = PlayerPredictor.load("models/player_predictor.pth")
+Models:
+    - PlayerLSTM: LSTM with attention for time-series prediction
+    - PlayerPredictor: Simple feedforward network
+    - BattingPredictor: Specialized for batting stats
+    - PitchingPredictor: Specialized for pitching stats
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Optional
+import logging
 
 import torch
 import torch.nn as nn
 import numpy as np
 
-from config.settings import settings
-from src.utils.logger import get_logger
+
+logger = logging.getLogger(__name__)
 
 
-logger = get_logger(__name__)
+class PlayerLSTM(nn.Module):
+    """
+    LSTM model with attention for player performance prediction.
+
+    Architecture:
+        - Bidirectional LSTM layers
+        - Multi-head self-attention
+        - Fully connected output layers
+
+    Args:
+        input_size: Number of input features per timestep
+        hidden_size: LSTM hidden dimension
+        num_layers: Number of LSTM layers
+        output_size: Number of output predictions
+        dropout: Dropout probability
+    """
+
+    def __init__(
+        self,
+        input_size: int = 15,
+        hidden_size: int = 128,
+        num_layers: int = 2,
+        output_size: int = 4,
+        dropout: float = 0.3
+    ):
+        super().__init__()
+
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.output_size = output_size
+
+        # Bidirectional LSTM
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,
+            bidirectional=True,
+            dropout=dropout if num_layers > 1 else 0
+        )
+
+        # Multi-head attention
+        self.attention = nn.MultiheadAttention(
+            embed_dim=hidden_size * 2,
+            num_heads=8,
+            dropout=dropout,
+            batch_first=True
+        )
+
+        # Output layers
+        self.fc = nn.Sequential(
+            nn.LayerNorm(hidden_size * 2),
+            nn.Linear(hidden_size * 2, hidden_size),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size, output_size)
+        )
+
+        self._initialize_weights()
+
+        logger.info(
+            f"PlayerLSTM initialized: {input_size} -> LSTM({hidden_size}x{num_layers}) -> {output_size}"
+        )
+
+    def _initialize_weights(self):
+        """Initialize weights using Xavier/Glorot initialization."""
+        for name, param in self.named_parameters():
+            if 'weight_ih' in name:
+                nn.init.xavier_uniform_(param)
+            elif 'weight_hh' in name:
+                nn.init.orthogonal_(param)
+            elif 'bias' in name:
+                nn.init.zeros_(param)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass.
+
+        Args:
+            x: Input tensor of shape (batch, seq_length, input_size)
+
+        Returns:
+            Output tensor of shape (batch, output_size)
+        """
+        # LSTM forward
+        lstm_out, _ = self.lstm(x)
+
+        # Self-attention
+        attn_out, _ = self.attention(lstm_out, lstm_out, lstm_out)
+
+        # Take last timestep
+        last_hidden = attn_out[:, -1, :]
+
+        # Output layers
+        output = self.fc(last_hidden)
+
+        return output
+
+    def predict(
+        self,
+        features: np.ndarray | torch.Tensor,
+        return_numpy: bool = True
+    ) -> np.ndarray | torch.Tensor:
+        """Make predictions."""
+        self.eval()
+
+        if isinstance(features, np.ndarray):
+            features = torch.FloatTensor(features)
+
+        if features.dim() == 2:
+            features = features.unsqueeze(0)
+
+        with torch.no_grad():
+            predictions = self.forward(features)
+
+        if return_numpy:
+            return predictions.numpy()
+        return predictions
+
+    def save(self, path: str | Path) -> None:
+        """Save model checkpoint."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        checkpoint = {
+            "model_state_dict": self.state_dict(),
+            "model_config": {
+                "input_size": self.input_size,
+                "hidden_size": self.hidden_size,
+                "num_layers": self.num_layers,
+                "output_size": self.output_size,
+            },
+        }
+        torch.save(checkpoint, path)
+        logger.info(f"Model saved to {path}")
+
+    @classmethod
+    def load(cls, path: str | Path) -> "PlayerLSTM":
+        """Load model from checkpoint."""
+        path = Path(path)
+
+        if not path.exists():
+            raise FileNotFoundError(f"Model not found: {path}")
+
+        checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+        config = checkpoint["model_config"]
+
+        model = cls(
+            input_size=config["input_size"],
+            hidden_size=config["hidden_size"],
+            num_layers=config["num_layers"],
+            output_size=config["output_size"],
+        )
+
+        model.load_state_dict(checkpoint["model_state_dict"])
+        model.eval()
+
+        logger.info(f"Model loaded from {path}")
+        return model
 
 
 class PlayerPredictor(nn.Module):
     """
-    Neural network for predicting player performance.
+    Simple feedforward network for player performance prediction.
 
     Architecture:
-    - Input layer: Player features (rolling stats, matchup data)
-    - Hidden layers: Fully connected with ReLU and dropout
-    - Output layer: Predicted statistics
-
-    Attributes:
-        input_features: Number of input features
-        hidden_dim: Hidden layer dimension
-        output_dim: Number of output predictions
+        - Input layer
+        - Hidden layers with BatchNorm, ReLU, Dropout
+        - Output layer
     """
 
     def __init__(
@@ -53,54 +201,34 @@ class PlayerPredictor(nn.Module):
         output_dim: int = 4,
         dropout: float = 0.3,
     ):
-        """
-        Initialize the predictor model.
-
-        Args:
-            input_features: Number of input features
-            hidden_dim: Dimension of hidden layers
-            output_dim: Number of output predictions
-            dropout: Dropout probability
-        """
         super().__init__()
 
         self.input_features = input_features
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
 
-        # Define network architecture
         self.network = nn.Sequential(
-            # First hidden layer
             nn.Linear(input_features, hidden_dim),
             nn.BatchNorm1d(hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout),
 
-            # Second hidden layer
             nn.Linear(hidden_dim, hidden_dim),
             nn.BatchNorm1d(hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout),
 
-            # Third hidden layer
             nn.Linear(hidden_dim, hidden_dim // 2),
             nn.ReLU(),
             nn.Dropout(dropout / 2),
 
-            # Output layer
             nn.Linear(hidden_dim // 2, output_dim),
         )
 
-        # Initialize weights
         self._initialize_weights()
 
-        logger.info(
-            f"PlayerPredictor initialized: "
-            f"{input_features} -> {hidden_dim} -> {output_dim}"
-        )
-
     def _initialize_weights(self) -> None:
-        """Initialize network weights using Xavier initialization."""
+        """Initialize weights using Xavier initialization."""
         for module in self.modules():
             if isinstance(module, nn.Linear):
                 nn.init.xavier_uniform_(module.weight)
@@ -108,15 +236,7 @@ class PlayerPredictor(nn.Module):
                     nn.init.zeros_(module.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass through the network.
-
-        Args:
-            x: Input tensor of shape (batch_size, input_features)
-
-        Returns:
-            Output tensor of shape (batch_size, output_dim)
-        """
+        """Forward pass."""
         return self.network(x)
 
     def predict(
@@ -124,23 +244,12 @@ class PlayerPredictor(nn.Module):
         features: np.ndarray | torch.Tensor,
         return_numpy: bool = True
     ) -> np.ndarray | torch.Tensor:
-        """
-        Make predictions for given features.
-
-        Args:
-            features: Input features
-            return_numpy: Whether to return numpy array
-
-        Returns:
-            Predicted values
-        """
+        """Make predictions."""
         self.eval()
 
-        # Convert to tensor if needed
         if isinstance(features, np.ndarray):
             features = torch.FloatTensor(features)
 
-        # Ensure batch dimension
         if features.dim() == 1:
             features = features.unsqueeze(0)
 
@@ -152,12 +261,7 @@ class PlayerPredictor(nn.Module):
         return predictions
 
     def save(self, path: str | Path) -> None:
-        """
-        Save model to disk.
-
-        Args:
-            path: Path to save model
-        """
+        """Save model to disk."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -170,61 +274,37 @@ class PlayerPredictor(nn.Module):
             },
         }
         torch.save(checkpoint, path)
-        logger.info(f"Model saved to {path}")
 
     @classmethod
     def load(cls, path: str | Path) -> "PlayerPredictor":
-        """
-        Load model from disk.
-
-        Args:
-            path: Path to saved model
-
-        Returns:
-            Loaded model instance
-        """
+        """Load model from disk."""
         path = Path(path)
 
         if not path.exists():
             raise FileNotFoundError(f"Model not found: {path}")
 
         checkpoint = torch.load(path, map_location="cpu", weights_only=False)
-
-        # Create model with saved config
         config = checkpoint["model_config"]
+
         model = cls(
             input_features=config["input_features"],
             hidden_dim=config["hidden_dim"],
             output_dim=config["output_dim"],
         )
 
-        # Load state dict
         model.load_state_dict(checkpoint["model_state_dict"])
         model.eval()
 
-        logger.info(f"Model loaded from {path}")
         return model
 
 
 class BattingPredictor(PlayerPredictor):
-    """
-    Specialized predictor for batting statistics.
+    """Specialized predictor for batting statistics."""
 
-    Predicts: hits, home runs, RBIs, walks
-    """
-
-    # Default feature names for batting prediction
     FEATURE_NAMES = [
-        "rolling_avg_10",
-        "rolling_obp_10",
-        "rolling_slg_10",
-        "rolling_hr_10",
-        "vs_pitcher_avg",
-        "home_away",
-        "day_night",
-        "park_factor",
-        "recent_form",
-        "days_rest",
+        "rolling_avg_10", "rolling_obp_10", "rolling_slg_10",
+        "rolling_hr_10", "vs_pitcher_avg", "home_away",
+        "day_night", "park_factor", "recent_form", "days_rest",
     ]
 
     OUTPUT_NAMES = ["hits", "home_runs", "rbi", "walks"]
@@ -237,49 +317,14 @@ class BattingPredictor(PlayerPredictor):
             dropout=dropout,
         )
 
-    def interpret_predictions(
-        self,
-        predictions: np.ndarray
-    ) -> list[dict[str, float]]:
-        """
-        Convert raw predictions to labeled dictionary.
-
-        Args:
-            predictions: Raw model output
-
-        Returns:
-            List of dictionaries with labeled predictions
-        """
-        if predictions.ndim == 1:
-            predictions = predictions.reshape(1, -1)
-
-        results = []
-        for pred in predictions:
-            results.append({
-                name: float(max(0, value))  # Ensure non-negative
-                for name, value in zip(self.OUTPUT_NAMES, pred)
-            })
-        return results
-
 
 class PitchingPredictor(PlayerPredictor):
-    """
-    Specialized predictor for pitching statistics.
-
-    Predicts: innings pitched, strikeouts, walks, earned runs
-    """
+    """Specialized predictor for pitching statistics."""
 
     FEATURE_NAMES = [
-        "rolling_era_5",
-        "rolling_whip_5",
-        "rolling_k9_5",
-        "vs_team_era",
-        "home_away",
-        "day_night",
-        "park_factor",
-        "days_rest",
-        "pitch_count_last",
-        "season_workload",
+        "rolling_era_5", "rolling_whip_5", "rolling_k9_5",
+        "vs_team_era", "home_away", "day_night",
+        "park_factor", "days_rest", "pitch_count_last", "season_workload",
     ]
 
     OUTPUT_NAMES = ["innings_pitched", "strikeouts", "walks", "earned_runs"]
@@ -293,44 +338,60 @@ class PitchingPredictor(PlayerPredictor):
         )
 
 
-class EnsemblePredictor:
+class GameTransformer(nn.Module):
     """
-    Ensemble of multiple models for robust predictions.
+    Transformer model for game outcome prediction.
 
-    Combines predictions from multiple models using averaging
-    or weighted voting.
+    Uses team embeddings and game context features to predict
+    win probability.
     """
 
-    def __init__(self, models: list[PlayerPredictor], weights: list[float] | None = None):
+    def __init__(
+        self,
+        num_teams: int = 30,
+        d_model: int = 256,
+        nhead: int = 8,
+        num_layers: int = 4,
+        dropout: float = 0.1
+    ):
+        super().__init__()
+
+        self.team_embedding = nn.Embedding(num_teams, d_model)
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=d_model * 4,
+            dropout=dropout,
+            batch_first=True
+        )
+
+        self.transformer = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=num_layers
+        )
+
+        self.classifier = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, 128),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(128, 2)  # [away_win, home_win]
+        )
+
+    def forward(self, team_ids: torch.Tensor, features: torch.Tensor) -> torch.Tensor:
         """
-        Initialize ensemble predictor.
+        Forward pass.
 
         Args:
-            models: List of predictor models
-            weights: Optional weights for each model (must sum to 1)
-        """
-        self.models = models
-        self.weights = weights or [1.0 / len(models)] * len(models)
-
-        if len(self.weights) != len(models):
-            raise ValueError("Number of weights must match number of models")
-
-        if abs(sum(self.weights) - 1.0) > 0.001:
-            raise ValueError("Weights must sum to 1")
-
-    def predict(self, features: np.ndarray) -> np.ndarray:
-        """
-        Make ensemble prediction.
-
-        Args:
-            features: Input features
+            team_ids: Team ID tensor (batch, 2) for [away, home]
+            features: Game features tensor (batch, seq, d_model)
 
         Returns:
-            Weighted average of model predictions
+            Win probability tensor (batch, 2)
         """
-        predictions = []
-        for model, weight in zip(self.models, self.weights):
-            pred = model.predict(features, return_numpy=True)
-            predictions.append(pred * weight)
-
-        return np.sum(predictions, axis=0)
+        team_emb = self.team_embedding(team_ids)  # (batch, 2, d_model)
+        x = team_emb + features
+        x = self.transformer(x)
+        x = x.mean(dim=1)  # Global average pooling
+        return self.classifier(x)

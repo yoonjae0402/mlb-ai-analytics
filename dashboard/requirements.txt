@@ -1,3 +1,0 @@
-# Dashboard-specific requirements
-streamlit>=1.30.0
-plotly>=5.18.0

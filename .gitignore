@@ -42,6 +42,9 @@ ENV/
 # =============================================================================
 data/*
 !data/**/.gitkeep
+data/assets/
+data/charts/
+data/metrics.jsonl
 *.db
 *.sqlite
 *.sqlite3

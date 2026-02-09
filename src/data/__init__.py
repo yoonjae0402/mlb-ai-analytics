@@ -1,7 +1,3 @@
 """
-Data module for MLB API integration.
+Data module for MLB data pipeline and feature engineering.
 """
-
-from src.data.fetcher import MLBDataFetcher
-
-__all__ = ["MLBDataFetcher"]

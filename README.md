@@ -35,10 +35,10 @@ pybaseball / MLB Stats API
 |-------|-------------|
 | **Frontend** | Next.js 14, TypeScript, Tailwind CSS, Recharts, React Query |
 | **Backend** | FastAPI, SQLAlchemy (async), Pydantic, Uvicorn |
-| **Database** | PostgreSQL, Alembic migrations |
+| **Database** | PostgreSQL |
 | **ML** | PyTorch (BiLSTM + multi-head attention), XGBoost, Optuna |
 | **Data** | pybaseball (Statcast, FanGraphs), MLB Stats API |
-| **Deploy** | Docker Compose, Vercel (frontend), Railway (backend) |
+| **Deploy** | Docker Compose, Railway |
 
 ## Getting Started
 
@@ -74,7 +74,7 @@ npm run dev
 ### Verify
 
 ```bash
-curl localhost:8000/health              # → {"status": "ok"}
+curl localhost:8000/health              # → {"status": "ok", "version": "2.0.0"}
 curl "localhost:8000/v1/players/search?q=judge"  # → Aaron Judge
 ```
 
@@ -118,8 +118,37 @@ curl "localhost:8000/v1/players/search?q=judge"  # → Aaron Judge
 | POST | `/v1/ensemble/predict` | Ensemble prediction |
 | GET | `/v1/games/live` | Live MLB games |
 | GET | `/v1/model/evaluation` | Full evaluation + baselines |
+| GET | `/v1/train/curves` | Training loss curves |
 | GET | `/v1/data/status` | Data freshness |
+| POST | `/v1/data/refresh` | Trigger data refresh |
+| POST | `/v1/attention/feature-attribution` | Gradient feature importance |
+| GET | `/v1/ensemble/weight-sensitivity` | Weight sweep analysis |
+| GET | `/v1/games/today` | Today's schedule |
+| GET | `/v1/model/metrics` | Raw model metrics |
+| GET | `/v1/players/{id}/predictions` | Player prediction history |
 | POST | `/v1/tune` | Start Optuna tuning |
+| GET | `/v1/tune/status` | Tuning progress |
+
+## CI/CD
+
+| Workflow | Trigger | What it does |
+|----------|---------|-------------|
+| `ci.yml` | Push / PR to `master` | Backend import check (Python 3.13 + PostgreSQL), frontend build (Node 20) |
+| `daily.yml` | Cron (10 AM UTC) + manual | Runs `refresh_daily_data()` to pull latest stats into PostgreSQL |
+
+## Configuration
+
+Backend settings are managed via `backend/core/config.py` using Pydantic. All environment variables use the `MLB_` prefix:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MLB_DATABASE_URL` | `sqlite+aiosqlite:///./mlb_analytics.db` | Async database URL |
+| `MLB_DATABASE_URL_SYNC` | `sqlite:///./mlb_analytics.db` | Sync database URL |
+| `MLB_CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed CORS origins |
+| `MLB_MODEL_DIR` | `models` | Model checkpoint directory |
+| `MLB_DATA_SEASONS` | `[2023, 2024]` | Seasons to fetch data for |
+
+Settings can also be loaded from a `.env` file.
 
 ## What I Learned
 
@@ -139,28 +168,35 @@ curl "localhost:8000/v1/players/search?q=judge"  # → Aaron Judge
 
 ```
 mlb-ai-analytics/
+├── .github/workflows/          # CI (ci.yml) + daily data refresh (daily.yml)
 ├── frontend/                   # Next.js 14 dashboard
 │   ├── app/                    # App Router pages (7 pages)
-│   ├── components/             # React components (charts, cards, layout)
+│   ├── components/             # React components
+│   │   ├── cards/              # MetricCard, GameCard, PlayerCard
+│   │   ├── charts/             # TrainingCurves, AttentionHeatmap, WinProbability, etc.
+│   │   ├── layout/             # Sidebar, Header
+│   │   ├── predict/            # PlayerSearch, PredictionResult
+│   │   └── train/              # TrainControls, TrainProgress
 │   ├── hooks/                  # React Query hooks
 │   └── lib/                    # API client, types, utilities
 ├── backend/                    # FastAPI application
 │   ├── main.py                 # FastAPI entry point
 │   ├── api/v1/                 # REST endpoints
-│   ├── core/                   # Model service, evaluation, tuning
-│   ├── db/                     # SQLAlchemy models, migrations
+│   ├── core/                   # Model service, evaluation, tuning, config
+│   ├── db/                     # SQLAlchemy models, session
 │   └── tasks/                  # Background data refresh
 ├── src/
 │   ├── data/                   # Data pipeline, feature engineering
-│   │   ├── pipeline.py         # Real MLB data fetching
-│   │   ├── feature_builder.py  # Feature engineering from DB
-│   │   └── cache_manager.py    # Parquet caching
+│   │   ├── pipeline.py         # Real MLB data fetching + DB seeding
+│   │   ├── feature_builder.py  # Sliding window sequences from DB
+│   │   └── cache_manager.py    # Parquet caching with TTL
 │   ├── models/                 # PyTorch + XGBoost models
 │   │   ├── predictor.py        # PlayerLSTM, GameTransformer
 │   │   ├── xgboost_model.py    # XGBoost wrapper
 │   │   ├── ensemble.py         # Ensemble methods
 │   │   └── model_registry.py   # Training orchestration
-│   └── services/               # Real-time game data
+│   └── services/
+│       └── realtime.py         # Live game polling + win probability
 ├── docker-compose.yml          # Full stack deployment
 └── training/                   # Standalone training scripts
 ```

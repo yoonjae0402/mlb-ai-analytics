@@ -18,10 +18,33 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: init DB pool + tables. Shutdown: cleanup."""
+    """Startup: init DB pool + tables + auto-generate predictions. Shutdown: cleanup."""
     logger.info("Starting MLB AI Analytics API...")
     await init_db()
     logger.info("Database initialized")
+    
+    # Auto-generate baseline predictions if none exist
+    try:
+        from backend.db.session import SyncSessionLocal
+        from backend.db.models import Prediction
+        session = SyncSessionLocal()
+        pred_count = session.query(Prediction).count()
+        session.close()
+        
+        if pred_count == 0:
+            logger.info("No predictions found — generating baseline predictions from historical averages...")
+            from backend.services.baseline_predictor import generate_all_predictions
+            session = SyncSessionLocal()
+            try:
+                count = generate_all_predictions(session)
+                logger.info(f"Auto-generated {count} baseline predictions on startup.")
+            finally:
+                session.close()
+        else:
+            logger.info(f"Found {pred_count} existing predictions — skipping auto-generation.")
+    except Exception as e:
+        logger.warning(f"Could not auto-generate baseline predictions: {e}")
+    
     yield
     logger.info("Shutting down...")
 

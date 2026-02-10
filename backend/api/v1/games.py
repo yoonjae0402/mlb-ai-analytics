@@ -106,15 +106,36 @@ async def get_game_predictions(
         home_team_id=g.get("home_id"),
     )
 
-    # 2. Get rosters - match players from our DB by team name
+    # 2. Get rosters - match players from our DB by team ID -> abbreviation
+    home_id = g.get("home_id")
+    away_id = g.get("away_id")
     home_team_name = g.get("home_name", "")
     away_team_name = g.get("away_name", "")
 
-    async def get_team_players(team_name: str) -> list[GamePlayerPrediction]:
+    async def get_team_players(mlb_team_id: int, team_name_fallback: str) -> list[GamePlayerPrediction]:
         """Look up players in our DB for this team and get their latest predictions."""
+        # Resolve team abbreviation from DB if possible
+        from backend.db.models import Team
+        from sqlalchemy import or_
+        
+        search_term = team_name_fallback
+        
+        if mlb_team_id:
+            team_q = await db.execute(select(Team).where(Team.mlb_id == mlb_team_id))
+            team_obj = team_q.scalars().one_or_none()
+            if team_obj and team_obj.abbreviation:
+                search_term = team_obj.abbreviation
+        
+        # Query players matching abbreviation OR full name (just in case)
         result = await db.execute(
             select(Player)
-            .where(Player.team.ilike(f"%{team_name}%"))
+            .where(
+                or_(
+                    Player.team == search_term,  # Exact match for abbreviation (e.g. "NYY")
+                    Player.team.ilike(f"%{team_name_fallback}%"), # Fallback for full name
+                    Player.team.ilike(f"%{search_term}%") # Partial match for abbreviation
+                )
+            )
             .order_by(Player.name)
         )
         players = result.scalars().all()
@@ -130,6 +151,59 @@ async def get_game_predictions(
             )
             pred = pred_result.scalar_one_or_none()
 
+            # If no prediction exists, generate a baseline one on-the-fly
+            pred_hits = None
+            pred_hr = None
+            pred_rbi = None
+            pred_walks = None
+            confidence = None
+            has_pred = False
+
+            if pred:
+                pred_hits = pred.predicted_hits
+                pred_hr = pred.predicted_hr
+                pred_rbi = pred.predicted_rbi
+                pred_walks = pred.predicted_walks
+                confidence = pred.confidence
+                has_pred = True
+            else:
+                # Auto-generate baseline prediction from historical stats
+                try:
+                    from backend.services.baseline_predictor import generate_player_prediction, _ensure_baseline_model_version
+                    from backend.db.session import SyncSessionLocal
+                    
+                    sync_session = SyncSessionLocal()
+                    try:
+                        sync_player = sync_session.query(Player).filter_by(id=p.id).first()
+                        if sync_player:
+                            mv = _ensure_baseline_model_version(sync_session)
+                            baseline = generate_player_prediction(sync_session, sync_player, mv)
+                            if baseline:
+                                pred_hits = baseline["predicted_hits"]
+                                pred_hr = baseline["predicted_hr"]
+                                pred_rbi = baseline["predicted_rbi"]
+                                pred_walks = baseline["predicted_walks"]
+                                confidence = baseline["confidence"]
+                                has_pred = True
+                                
+                                # Store it for future requests
+                                from backend.db.models import Prediction as PredModel
+                                new_pred = PredModel(
+                                    player_id=p.id,
+                                    model_version_id=mv.id,
+                                    predicted_hits=pred_hits,
+                                    predicted_hr=pred_hr,
+                                    predicted_rbi=pred_rbi,
+                                    predicted_walks=pred_walks,
+                                    confidence=confidence,
+                                )
+                                sync_session.add(new_pred)
+                                sync_session.commit()
+                    finally:
+                        sync_session.close()
+                except Exception as e:
+                    logger.warning(f"Could not generate baseline prediction for {p.name}: {e}")
+
             player_preds.append(GamePlayerPrediction(
                 player_id=p.id,
                 mlb_id=p.mlb_id,
@@ -137,18 +211,18 @@ async def get_game_predictions(
                 team=p.team,
                 position=p.position,
                 headshot_url=p.headshot_url,
-                predicted_hits=pred.predicted_hits if pred else None,
-                predicted_hr=pred.predicted_hr if pred else None,
-                predicted_rbi=pred.predicted_rbi if pred else None,
-                predicted_walks=pred.predicted_walks if pred else None,
-                confidence=pred.confidence if pred else None,
-                has_prediction=pred is not None,
+                predicted_hits=pred_hits,
+                predicted_hr=pred_hr,
+                predicted_rbi=pred_rbi,
+                predicted_walks=pred_walks,
+                confidence=confidence,
+                has_prediction=has_pred,
             ))
 
         return player_preds
 
-    home_players = await get_team_players(home_team_name)
-    away_players = await get_team_players(away_team_name)
+    home_players = await get_team_players(home_id, home_team_name)
+    away_players = await get_team_players(away_id, away_team_name)
 
     return GamePredictionsResponse(
         game=game_detail,

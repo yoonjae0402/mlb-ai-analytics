@@ -169,56 +169,81 @@ class MLBDataPipeline:
             return []
 
     def fetch_all_players(self, season: int) -> list[dict]:
-        """Fetch all players on 40-man rosters + top prospects.
+        """Fetch all players on MLB + Triple-A rosters.
 
         Returns a list of dicts with player info including MLB ID, name, team,
-        position, and current level (MLB/AAA/AA/etc.).
+        position, and current level (MLB or AAA).
         """
-        cache_key = f"all_players_{season}"
+        cache_key = f"all_players_mlb_aaa_{season}"
         cached = self.cache.get(cache_key, "rosters")
         if cached is not None:
             return cached.to_dict("records")
 
-        logger.info(f"Fetching all MLB rosters for {season}...")
+        logger.info(f"Fetching MLB + AAA rosters for {season}...")
         all_players = []
 
-        try:
-            teams = statsapi.get("teams", {"sportId": 1, "season": season})
-            for team_info in teams.get("teams", []):
-                team_id = team_info["id"]
-                team_name = team_info.get("abbreviation", team_info.get("name", ""))
+        # sportId: 1 = MLB, 11 = Triple-A
+        sport_levels = {1: "MLB", 11: "AAA"}
 
-                try:
-                    roster = statsapi.roster(team_id, rosterType="40Man", season=season)
-                    # Parse roster text — statsapi.roster returns formatted text
-                    # Use the API directly for structured data
-                    roster_data = statsapi.get(
-                        "team_roster",
-                        {"teamId": team_id, "rosterType": "40Man", "season": season},
-                    )
-                    for entry in roster_data.get("roster", []):
-                        person = entry.get("person", {})
-                        pos = entry.get("position", {})
-                        status = entry.get("status", {})
-                        all_players.append({
-                            "mlb_id": person.get("id"),
-                            "name": person.get("fullName", ""),
-                            "team": team_name,
-                            "team_id": team_id,
-                            "position": pos.get("abbreviation", ""),
-                            "current_level": "MLB" if "Active" in status.get("description", "") else "MiLB",
-                        })
-                except Exception as e:
-                    logger.warning(f"Error fetching roster for team {team_id}: {e}")
-                    continue
+        for sport_id, level_name in sport_levels.items():
+            try:
+                logger.info(f"Fetching {level_name} teams (sportId={sport_id})...")
+                teams = statsapi.get("teams", {"sportId": sport_id, "season": season})
+                team_list = teams.get("teams", [])
+                logger.info(f"  Found {len(team_list)} {level_name} teams")
 
-        except Exception as e:
-            logger.error(f"Error fetching teams: {e}")
+                for team_info in team_list:
+                    team_id = team_info["id"]
+                    team_name = team_info.get("abbreviation", team_info.get("name", ""))
+                    parent_org_id = team_info.get("parentOrgId", team_id)
 
-        if all_players:
-            df = pd.DataFrame(all_players)
+                    try:
+                        roster_data = statsapi.get(
+                            "team_roster",
+                            {"teamId": team_id, "rosterType": "fullRoster", "season": season},
+                        )
+
+                        for entry in roster_data.get("roster", []):
+                            person = entry.get("person", {})
+                            pos = entry.get("position", {})
+                            status = entry.get("status", {})
+                            bat_side = person.get("batSide", {}).get("code", "")
+                            pitch_hand = person.get("pitchHand", {}).get("code", "")
+
+                            all_players.append({
+                                "mlb_id": person.get("id"),
+                                "name": person.get("fullName", ""),
+                                "team": team_name,
+                                "team_id": team_id,
+                                "parent_org_id": parent_org_id,
+                                "position": pos.get("abbreviation", ""),
+                                "current_level": level_name,
+                                "status": status.get("description", ""),
+                                "bats": bat_side,
+                                "throws": pitch_hand,
+                            })
+                    except Exception as e:
+                        logger.warning(f"Error fetching roster for {team_name} ({team_id}): {e}")
+                        continue
+
+            except Exception as e:
+                logger.error(f"Error fetching {level_name} teams: {e}")
+
+        # Dedup by MLB ID — prefer MLB level entry over AAA
+        seen_ids = set()
+        unique_players = []
+        for p in all_players:
+            pid = p["mlb_id"]
+            if pid and pid not in seen_ids:
+                seen_ids.add(pid)
+                unique_players.append(p)
+
+        logger.info(f"Found {len(unique_players)} unique MLB + AAA players.")
+
+        if unique_players:
+            df = pd.DataFrame(unique_players)
             self.cache.set(cache_key, df)
-        return all_players
+        return unique_players
 
     def fetch_milb_game_logs(self, player_id: int, season: int) -> list[dict]:
         """Fetch minor league game logs for a player."""
@@ -277,20 +302,17 @@ class MLBDataPipeline:
 
             for season in seasons:
                 logger.info(f"Seeding database with {season} data...")
-                df = self.fetch_batting_stats(season)
-                if df is None or df.empty:
-                    logger.warning(f"No batting stats for {season}")
-                    continue
+                
+                # Fetch ALL players (MLB + MiLB)
+                all_players = self.fetch_all_players(season)
+                logger.info(f"Found {len(all_players)} total players for {season}")
 
                 count = 0
-                for _, row in df.iterrows():
-                    # Resolve MLB ID from name
-                    name = row.get("Name", "")
-                    if not name:
-                        continue
-
-                    mlb_id = self._resolve_mlb_id(name)
-                    if mlb_id is None:
+                for p_dict in all_players:
+                    # Resolve MLB ID is redundant because fetch_all_players already has it!
+                    mlb_id = p_dict["mlb_id"]
+                    name = p_dict["name"]
+                    if not mlb_id or not name:
                         continue
 
                     # Upsert player
@@ -299,22 +321,33 @@ class MLBDataPipeline:
                         player = Player(
                             mlb_id=mlb_id,
                             name=name,
-                            team=str(row.get("Team", "")),
-                            position="",
-                            bats=str(row.get("Bats", "")),
-                            throws=str(row.get("Throws", "")),
+                            team=p_dict.get("team", ""),
+                            position=p_dict.get("position", ""),
+                            bats=p_dict.get("bats", ""),
+                            throws=p_dict.get("throws", ""),
                             headshot_url=get_headshot_url(mlb_id),
-                            current_level="MLB",
+                            current_level=p_dict.get("current_level", "MiLB"),
                         )
                         session.add(player)
                         session.flush()
                     else:
-                        # Update headshot URL if missing
+                        # Update fields if changed
                         if not player.headshot_url:
                             player.headshot_url = get_headshot_url(mlb_id)
+                        player.current_level = p_dict.get("current_level", "MiLB")
 
-                    # Fetch game logs for this player
+                    # Decide whether to fetch logs based on level?
+                    # For now, try fetching logs for everyone.
+                    # fetch_player_game_logs handles MLB.
+                    # fetch_milb_game_logs handles MiLB.
+                    
+                    # Fetch MLB logs
                     logs = self.fetch_player_game_logs(mlb_id, season)
+                    
+                    # Also fetch MiLB logs just in case (some players play both)
+                    milb_logs = self.fetch_milb_game_logs(mlb_id, season)
+                    logs.extend(milb_logs)
+
                     for log in logs:
                         stat_data = log.get("stat", {})
                         game_date_str = log.get("date", "")
@@ -333,11 +366,14 @@ class MLBDataPipeline:
                         )
                         if existing:
                             continue
+                        
+                        # Check level for this specific game log if available
+                        game_level = log.get("_level", "MLB") # Set by fetch_milb_game_logs
 
                         ps = PlayerStat(
                             player_id=player.id,
                             game_date=gd,
-                            level="MLB",
+                            level=game_level,
                             batting_avg=_safe_float(stat_data.get("avg")),
                             obp=_safe_float(stat_data.get("obp")),
                             slg=_safe_float(stat_data.get("slg")),

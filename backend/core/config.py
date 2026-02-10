@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # Data
     cache_dir: str = "data/cache"
-    data_seasons: list[int] = [2023, 2024]
+    data_seasons: list[int] = [2024, 2025]
 
     # API
     api_prefix: str = "/v1"

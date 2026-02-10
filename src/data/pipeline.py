@@ -114,18 +114,18 @@ class MLBDataPipeline:
 
         logger.info(f"Fetching game logs for player {player_id}, season {season}")
         params = {
-            "personId": player_id,
-            "stats": "gameLog",
-            "group": "hitting",
-            "season": season,
+            "personIds": player_id,
+            "hydrate": f"stats(group=[hitting],type=[gameLog],season={season})",
         }
-        data = _retry(lambda: statsapi.get("people_stats", params))
+        data = _retry(lambda: statsapi.get("people", params))
 
         logs = []
-        if "stats" in data:
-            for stat_group in data["stats"]:
-                if "splits" in stat_group:
-                    logs.extend(stat_group["splits"])
+        if "people" in data and len(data["people"]) > 0:
+            person_data = data["people"][0]
+            if "stats" in person_data:
+                for stat_group in person_data["stats"]:
+                    if "splits" in stat_group:
+                        logs.extend(stat_group["splits"])
 
         if logs:
             df = pd.DataFrame(logs)
@@ -233,20 +233,19 @@ class MLBDataPipeline:
             # Try each minor league level
             for level_code in ["11", "12", "13", "14"]:  # AAA, AA, High-A, A
                 params = {
-                    "personId": player_id,
-                    "stats": "gameLog",
-                    "group": "hitting",
-                    "season": season,
-                    "sportId": level_code,
+                    "personIds": player_id,
+                    "hydrate": f"stats(group=[hitting],type=[gameLog],season={season},sportId={level_code})",
                 }
                 try:
-                    data = statsapi.get("people_stats", params)
-                    if "stats" in data:
-                        for stat_group in data["stats"]:
-                            if "splits" in stat_group:
-                                for split in stat_group["splits"]:
-                                    split["_level"] = level_code
-                                logs.extend(stat_group["splits"])
+                    data = statsapi.get("people", params)
+                    if "people" in data and len(data["people"]) > 0:
+                        person_data = data["people"][0]
+                        if "stats" in person_data:
+                            for stat_group in person_data["stats"]:
+                                if "splits" in stat_group:
+                                    for split in stat_group["splits"]:
+                                        split["_level"] = level_code
+                                    logs.extend(stat_group["splits"])
                 except Exception:
                     continue
         except Exception as e:

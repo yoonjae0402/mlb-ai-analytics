@@ -1,7 +1,7 @@
 # MLB Video Pipeline - Git Ignore
 # User Requested Ignores
-*.json
 *.jsonl
+!package-lock.json
 *.mp4
 
 # =============================================================================

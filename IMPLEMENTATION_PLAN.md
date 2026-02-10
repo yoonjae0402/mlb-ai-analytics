@@ -1,4 +1,4 @@
-# Goal Description
+    # Goal Description
 The goal is to ensure the MLB Analytics website shows player stats and allows searching even when no games are scheduled for the current day. This involves fixing a likely issue where the search component or data retrieval assumes active games. Additionally, the schedule component will be updated to be interactive, allowing users to click on a game to view detailed predictions for the players involved.
 
 Furthermore, a significant design overhaul will be applied to make the site more "beginner friendly" (easier to read stats, professional color scheme, clear explanations), taking inspiration from a simplified FanGraphs aesthetic.

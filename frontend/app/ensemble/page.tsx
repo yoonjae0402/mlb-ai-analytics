@@ -5,6 +5,9 @@ import { getWeightSensitivity, getModelMetrics } from "@/lib/api";
 import WeightSensitivity from "@/components/charts/WeightSensitivity";
 import MetricCard from "@/components/cards/MetricCard";
 import { formatMetric } from "@/lib/utils";
+import PageIntro from "@/components/ui/PageIntro";
+import InfoTooltip from "@/components/ui/InfoTooltip";
+import { Layers } from "lucide-react";
 
 export default function EnsemblePage() {
   const [strategy, setStrategy] = useState("weighted_average");
@@ -43,11 +46,19 @@ export default function EnsemblePage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      <PageIntro title="Combine Models for Better Predictions" icon={<Layers className="w-5 h-5" />} pageKey="ensemble">
+        <p>
+          Blending predictions from LSTM and XGBoost often beats either model alone — like
+          asking two experts and averaging their answers. Use <strong>Weighted Average</strong> to
+          control the blend, or <strong>Stacking</strong> to let a meta-learner figure out the best mix.
+        </p>
+      </PageIntro>
+
       {/* Strategy Controls */}
-      <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
+      <div className="bg-mlb-card border border-mlb-border rounded-xl p-4" data-tour="ensemble-controls">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="text-xs text-mlb-muted block mb-2">Strategy</label>
+            <label className="text-xs text-mlb-muted block mb-2">Strategy<InfoTooltip term="ensemble" /></label>
             <div className="flex gap-2">
               {["weighted_average", "stacking"].map((s) => (
                 <button
@@ -88,19 +99,19 @@ export default function EnsemblePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {metrics?.lstm && (
           <MetricCard
-            label="LSTM MSE"
+            label={<>LSTM MSE<InfoTooltip term="mse" /></>}
             value={formatMetric(metrics.lstm.mse)}
           />
         )}
         {metrics?.xgboost && (
           <MetricCard
-            label="XGBoost MSE"
+            label={<>XGBoost MSE<InfoTooltip term="mse" /></>}
             value={formatMetric(metrics.xgboost.mse)}
           />
         )}
         {currentMSE !== undefined && (
           <MetricCard
-            label="Ensemble MSE"
+            label={<>Ensemble MSE<InfoTooltip term="mse" /></>}
             value={formatMetric(currentMSE)}
             deltaType={
               currentMSE <

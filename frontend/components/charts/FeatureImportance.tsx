@@ -4,6 +4,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { FEATURE_DISPLAY_NAMES } from "@/lib/constants";
+import ChartExplainer from "@/components/ui/ChartExplainer";
 
 interface FeatureImportanceProps {
   importance: number[];
@@ -23,9 +24,12 @@ export default function FeatureImportance({
 
   return (
     <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
-      <h3 className="text-sm font-semibold text-mlb-text mb-4">
+      <h3 className="text-sm font-semibold text-mlb-text mb-1">
         Feature Importance (Gradient-based)
       </h3>
+      <ChartExplainer>
+        Shows which stats most influenced the prediction. Taller bars = bigger impact on the model&apos;s output.
+      </ChartExplainer>
       <ResponsiveContainer width="100%" height={400}>
         <BarChart data={data} layout="vertical" margin={{ left: 80 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e3050" />

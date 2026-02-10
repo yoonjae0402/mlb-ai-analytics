@@ -5,7 +5,11 @@ import { getAttentionWeights, getFeatureAttribution } from "@/lib/api";
 import AttentionHeatmap from "@/components/charts/AttentionHeatmap";
 import FeatureImportance from "@/components/charts/FeatureImportance";
 import MetricCard from "@/components/cards/MetricCard";
+import PredictionVsActual from "@/components/charts/PredictionVsActual";
 import { TARGET_DISPLAY_NAMES } from "@/lib/constants";
+import PageIntro from "@/components/ui/PageIntro";
+import InfoTooltip from "@/components/ui/InfoTooltip";
+import { Eye } from "lucide-react";
 
 export default function AttentionPage() {
   const [sampleIdx, setSampleIdx] = useState(0);
@@ -34,6 +38,14 @@ export default function AttentionPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      <PageIntro title="How Does the AI Decide?" icon={<Eye className="w-5 h-5" />} pageKey="attention">
+        <p>
+          The LSTM model doesn&apos;t treat all past games equally — it pays more <strong>attention</strong> to
+          the games it thinks are most relevant. Below you can see which games mattered most and which
+          stats drove each prediction.
+        </p>
+      </PageIntro>
+
       {/* Sample selector */}
       <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
         <div className="flex items-center gap-4">
@@ -58,7 +70,7 @@ export default function AttentionPage() {
           {attention.target_names.map((name, i) => (
             <MetricCard
               key={name}
-              label={TARGET_DISPLAY_NAMES[name] || name}
+              label={<>{TARGET_DISPLAY_NAMES[name] || name}<InfoTooltip term={name} /></>}
               value={attention.prediction[i]?.toFixed(2) || "—"}
               delta={`Actual: ${attention.actual[i]?.toFixed(2) || "—"}`}
               deltaType={
@@ -71,10 +83,21 @@ export default function AttentionPage() {
         </div>
       )}
 
+      {/* Prediction vs Actual Bar Chart */}
+      {attention && (
+        <PredictionVsActual
+          prediction={attention.prediction}
+          actual={attention.actual}
+          targetNames={attention.target_names}
+        />
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Attention Heatmap */}
         {attention && attention.attention_weights[0] && (
-          <AttentionHeatmap weights={attention.attention_weights[0]} />
+          <div data-tour="attention-heatmap">
+            <AttentionHeatmap weights={attention.attention_weights[0]} />
+          </div>
         )}
 
         {/* Feature Importance */}

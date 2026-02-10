@@ -3,9 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { getDataStatus, getHealth } from "@/lib/api";
 import MetricCard from "@/components/cards/MetricCard";
 import {
-  BarChart3, Eye, Layers, Activity, Search, FileCode, Database,
+  BarChart3, Eye, Layers, Activity, Search, FileCode, Database, Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import PageIntro from "@/components/ui/PageIntro";
+import WalkthroughCTA from "@/components/ui/WalkthroughCTA";
 
 const features = [
   {
@@ -64,8 +66,16 @@ export default function HomePage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
+      <PageIntro title="What is this platform?" icon={<Sparkles className="w-5 h-5" />} pageKey="home">
+        <p>
+          This platform uses AI to predict how MLB players will perform in their next game,
+          trained on real Statcast data (exit velocity, barrel rate, sprint speed, and more).
+          No baseball or machine learning expertise needed — just explore!
+        </p>
+      </PageIntro>
+
       {/* Hero */}
-      <div className="text-center py-8">
+      <div className="text-center py-8" data-tour="hero">
         <h1 className="text-4xl font-bold text-mlb-text">
           <span className="text-mlb-red">MLB</span> AI Analytics Platform
         </h1>
@@ -82,6 +92,9 @@ export default function HomePage() {
           <span className="text-xs text-mlb-muted">
             API {health?.status === "ok" ? "Connected" : "Offline"}
           </span>
+        </div>
+        <div className="mt-5">
+          <WalkthroughCTA />
         </div>
       </div>
 
@@ -110,7 +123,7 @@ export default function HomePage() {
       )}
 
       {/* Feature Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-tour="features">
         {features.map((feat) => {
           const Icon = feat.icon;
           return (

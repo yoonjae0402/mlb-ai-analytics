@@ -1,6 +1,16 @@
 "use client";
 import { useState } from "react";
 import type { TrainConfig } from "@/lib/api";
+import InfoTooltip from "@/components/ui/InfoTooltip";
+
+const FIELD_GLOSSARY: Record<string, string> = {
+  epochs: "epochs",
+  lr: "learning_rate",
+  hidden_size: "hidden_size",
+  batch_size: "batch_size",
+  n_estimators: "xgboost",
+  max_depth: "xgboost",
+};
 
 interface TrainControlsProps {
   onTrain: (config: TrainConfig) => void;
@@ -38,6 +48,7 @@ export default function TrainControls({ onTrain, isTraining }: TrainControlsProp
           <div key={field.key}>
             <label className="text-xs text-mlb-muted block mb-1">
               {field.label}
+              {FIELD_GLOSSARY[field.key] && <InfoTooltip term={FIELD_GLOSSARY[field.key]} />}
             </label>
             {field.type === "select" ? (
               <select

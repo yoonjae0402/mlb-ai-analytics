@@ -3,6 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
+import ChartExplainer from "@/components/ui/ChartExplainer";
 
 interface WeightSensitivityProps {
   sweep: { lstm_weight: number; mse: number }[];
@@ -17,6 +18,9 @@ export default function WeightSensitivity({ sweep }: WeightSensitivityProps) {
       <h3 className="text-sm font-semibold text-mlb-text mb-1">
         Ensemble Weight Sensitivity
       </h3>
+      <ChartExplainer>
+        Shows how ensemble error changes across different LSTM/XGBoost weight blends. The green line marks the optimal weight.
+      </ChartExplainer>
       <p className="text-xs text-mlb-muted mb-4">
         Best LSTM weight: {bestWeight.toFixed(2)} (MSE: {minMSE.toFixed(4)})
       </p>

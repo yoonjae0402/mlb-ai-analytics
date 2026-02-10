@@ -1,5 +1,6 @@
 "use client";
 import { useMemo } from "react";
+import ChartExplainer from "@/components/ui/ChartExplainer";
 
 interface AttentionHeatmapProps {
   weights: number[][];
@@ -25,9 +26,12 @@ export default function AttentionHeatmap({ weights, labels }: AttentionHeatmapPr
 
   return (
     <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
-      <h3 className="text-sm font-semibold text-mlb-text mb-4">
+      <h3 className="text-sm font-semibold text-mlb-text mb-1">
         Attention Weights
       </h3>
+      <ChartExplainer>
+        Each cell shows how much the model related two past games. Brighter red = more attention paid to that game pair.
+      </ChartExplainer>
       <div className="overflow-x-auto">
         <svg
           width={cellSize * size + 60}

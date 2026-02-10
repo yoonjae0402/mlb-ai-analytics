@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 interface MetricCardProps {
-  label: string;
+  label: React.ReactNode;
   value: string | number;
   delta?: string;
   deltaType?: "positive" | "negative" | "neutral";

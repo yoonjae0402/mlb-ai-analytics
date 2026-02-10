@@ -4,6 +4,7 @@ import {
   PolarRadiusAxis, ResponsiveContainer, Legend,
 } from "recharts";
 import { FEATURE_DISPLAY_NAMES } from "@/lib/constants";
+import ChartExplainer from "@/components/ui/ChartExplainer";
 
 interface RadarChartProps {
   playerFeatures: number[];
@@ -33,9 +34,12 @@ export default function RadarChart({
 
   return (
     <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
-      <h3 className="text-sm font-semibold text-mlb-text mb-4">
+      <h3 className="text-sm font-semibold text-mlb-text mb-1">
         Player vs League Average
       </h3>
+      <ChartExplainer>
+        Each axis is a stat. The shape shows this player&apos;s recent performance vs. league average.
+      </ChartExplainer>
       <ResponsiveContainer width="100%" height={300}>
         <RechartsRadar cx="50%" cy="50%" outerRadius="70%" data={data}>
           <PolarGrid stroke="#1e3050" />

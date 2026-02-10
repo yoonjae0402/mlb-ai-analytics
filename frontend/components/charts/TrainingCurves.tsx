@@ -4,6 +4,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { TrainCurves } from "@/lib/api";
+import ChartExplainer from "@/components/ui/ChartExplainer";
 
 interface TrainingCurvesProps {
   curves: TrainCurves;
@@ -35,7 +36,10 @@ export default function TrainingCurvesChart({
 
   return (
     <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
-      <h3 className="text-sm font-semibold text-mlb-text mb-4">Training Curves</h3>
+      <h3 className="text-sm font-semibold text-mlb-text mb-1">Training Curves</h3>
+      <ChartExplainer>
+        These curves show how each model&apos;s error decreases during training. Solid lines = training, dashed = validation. A growing gap may indicate overfitting.
+      </ChartExplainer>
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e3050" />

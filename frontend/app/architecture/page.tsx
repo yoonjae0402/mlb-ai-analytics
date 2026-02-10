@@ -1,5 +1,6 @@
 "use client";
-import { Database, Server, Monitor, Brain, Zap, GitBranch } from "lucide-react";
+import { Database, Server, Monitor, Brain, Zap, GitBranch, FileCode } from "lucide-react";
+import PageIntro from "@/components/ui/PageIntro";
 
 const techStack = [
   { category: "Frontend", items: "Next.js 14, TypeScript, Tailwind CSS, Recharts, React Query" },
@@ -54,6 +55,13 @@ const models = [
 export default function ArchitecturePage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
+      <PageIntro title="How the Platform is Built" icon={<FileCode className="w-5 h-5" />} pageKey="architecture">
+        <p>
+          Technical documentation for students and developers. See the full data pipeline,
+          tech stack, model architectures, and API endpoints that power the platform.
+        </p>
+      </PageIntro>
+
       {/* Architecture Diagram */}
       <div className="bg-mlb-card border border-mlb-border rounded-xl p-6">
         <h3 className="text-sm font-semibold text-mlb-text mb-6">

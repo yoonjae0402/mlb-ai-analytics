@@ -1,5 +1,6 @@
 import type { Player } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import PlayerHeadshot from "@/components/ui/PlayerHeadshot";
 
 interface PlayerCardProps {
   player: Player;
@@ -19,13 +20,7 @@ export default function PlayerCard({ player, selected, onClick }: PlayerCardProp
       )}
     >
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-mlb-surface flex items-center justify-center text-sm font-bold text-mlb-blue">
-          {player.name
-            .split(" ")
-            .map((n) => n[0])
-            .join("")
-            .slice(0, 2)}
-        </div>
+        <PlayerHeadshot mlbId={player.mlb_id} name={player.name} size="sm" />
         <div>
           <p className="text-sm font-semibold text-mlb-text">{player.name}</p>
           <p className="text-xs text-mlb-muted">

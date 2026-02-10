@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { GameData } from "@/lib/api";
+import InfoTooltip from "@/components/ui/InfoTooltip";
 
 interface GameCardProps {
   game: GameData;
@@ -60,7 +61,7 @@ export default function GameCard({ game, onClick }: GameCardProps) {
       {(isLive || isFinal) && (
         <div className="mt-3">
           <div className="flex justify-between text-[10px] text-mlb-muted mb-1">
-            <span>Win Prob</span>
+            <span>Win Prob<InfoTooltip term="win_probability" /></span>
             <span>{(game.home_win_prob * 100).toFixed(0)}%</span>
           </div>
           <div className="h-1.5 bg-mlb-surface rounded-full overflow-hidden">

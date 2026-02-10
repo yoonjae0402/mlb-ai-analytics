@@ -3,6 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from "recharts";
+import ChartExplainer from "@/components/ui/ChartExplainer";
 
 interface BarComparisonProps {
   data: { name: string; lstm: number; xgboost: number; ensemble?: number }[];
@@ -12,7 +13,10 @@ interface BarComparisonProps {
 export default function BarComparison({ data, title = "Per-Target MSE" }: BarComparisonProps) {
   return (
     <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
-      <h3 className="text-sm font-semibold text-mlb-text mb-4">{title}</h3>
+      <h3 className="text-sm font-semibold text-mlb-text mb-1">{title}</h3>
+      <ChartExplainer>
+        Compares prediction accuracy across stats. Shorter bars = lower error = better predictions.
+      </ChartExplainer>
       <ResponsiveContainer width="100%" height={250}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e3050" />

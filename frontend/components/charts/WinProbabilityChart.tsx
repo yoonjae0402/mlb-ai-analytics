@@ -3,6 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
+import ChartExplainer from "@/components/ui/ChartExplainer";
 
 interface WinProbabilityChartProps {
   wpHistory: number[];
@@ -23,9 +24,12 @@ export default function WinProbabilityChart({
 
   return (
     <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
-      <h3 className="text-sm font-semibold text-mlb-text mb-4">
+      <h3 className="text-sm font-semibold text-mlb-text mb-1">
         Win Probability
       </h3>
+      <ChartExplainer>
+        Tracks the home team&apos;s win chance as the game progresses. Above 50% = home team favored.
+      </ChartExplainer>
       <ResponsiveContainer width="100%" height={200}>
         <AreaChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e3050" />

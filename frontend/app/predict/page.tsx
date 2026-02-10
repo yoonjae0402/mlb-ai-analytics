@@ -7,6 +7,12 @@ import PlayerSearch from "@/components/predict/PlayerSearch";
 import PredictionResultView from "@/components/predict/PredictionResult";
 import RadarChart from "@/components/charts/RadarChart";
 import MetricCard from "@/components/cards/MetricCard";
+import PageIntro from "@/components/ui/PageIntro";
+import InfoTooltip from "@/components/ui/InfoTooltip";
+import PlayerHeadshot from "@/components/ui/PlayerHeadshot";
+import StatTrendline from "@/components/charts/StatTrendline";
+import StatGauge from "@/components/ui/StatGauge";
+import { Search } from "lucide-react";
 
 export default function PredictPage() {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
@@ -26,12 +32,31 @@ export default function PredictPage() {
     }
   };
 
+  // Build sparkline data from recent_stats
+  const buildTrendData = (key: string) => {
+    if (!playerDetail?.recent_stats) return [];
+    return playerDetail.recent_stats
+      .filter((s) => (s as any)[key] !== undefined && (s as any)[key] !== null)
+      .map((s) => ({
+        game_date: s.game_date,
+        value: (s as any)[key] as number,
+      }));
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      <PageIntro title="Predict a Player's Next Game" icon={<Search className="w-5 h-5" />} pageKey="predict">
+        <p>
+          Search for any MLB player, then let AI predict their next game performance.
+          The model analyzes the player&apos;s last 10 games — including batting average,
+          exit velocity, and other Statcast data — to forecast hits, home runs, RBI, and walks.
+        </p>
+      </PageIntro>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Search + Controls */}
         <div className="space-y-4">
-          <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
+          <div className="bg-mlb-card border border-mlb-border rounded-xl p-4" data-tour="player-search">
             <h3 className="text-sm font-semibold text-mlb-text mb-3">
               Find a Player
             </h3>
@@ -42,9 +67,11 @@ export default function PredictPage() {
           </div>
 
           {selectedPlayer && (
-            <div className="bg-mlb-card border border-mlb-border rounded-xl p-4 space-y-3">
+            <div className="bg-mlb-card border border-mlb-border rounded-xl p-4 space-y-3" data-tour="predict-button">
               <div>
-                <label className="text-xs text-mlb-muted block mb-1">Model</label>
+                <label className="text-xs text-mlb-muted block mb-1">
+                  Model<InfoTooltip term="lstm" />
+                </label>
                 <div className="flex gap-2">
                   {["lstm", "xgboost", "ensemble"].map((m) => (
                     <button
@@ -74,33 +101,81 @@ export default function PredictPage() {
           {/* Player Info */}
           {playerDetail && (
             <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
-              <h3 className="text-sm font-semibold text-mlb-text mb-2">
-                {playerDetail.player.name}
-              </h3>
-              <p className="text-xs text-mlb-muted">
-                {playerDetail.player.team} | {playerDetail.player.position || "—"} |
-                Bats: {playerDetail.player.bats || "—"}
-              </p>
+              <div className="flex items-center gap-3 mb-3">
+                <PlayerHeadshot
+                  mlbId={playerDetail.player.mlb_id}
+                  name={playerDetail.player.name}
+                  size="md"
+                />
+                <div>
+                  <h3 className="text-sm font-semibold text-mlb-text">
+                    {playerDetail.player.name}
+                  </h3>
+                  <p className="text-xs text-mlb-muted">
+                    {playerDetail.player.team} | {playerDetail.player.position || "—"} |
+                    Bats: {playerDetail.player.bats || "—"}
+                  </p>
+                </div>
+              </div>
               {playerDetail.season_totals && (
-                <div className="grid grid-cols-3 gap-2 mt-3">
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-mlb-text">
-                      {playerDetail.season_totals.batting_avg?.toFixed(3)}
-                    </p>
-                    <p className="text-[10px] text-mlb-muted">AVG</p>
+                <>
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="text-center">
+                      <p className="text-lg font-bold text-mlb-text">
+                        {playerDetail.season_totals.batting_avg?.toFixed(3)}
+                      </p>
+                      <p className="text-[10px] text-mlb-muted">AVG<InfoTooltip term="batting_avg" /></p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-bold text-mlb-text">
+                        {playerDetail.season_totals.home_runs}
+                      </p>
+                      <p className="text-[10px] text-mlb-muted">HR<InfoTooltip term="home_runs" /></p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-bold text-mlb-text">
+                        {playerDetail.season_totals.rbi}
+                      </p>
+                      <p className="text-[10px] text-mlb-muted">RBI<InfoTooltip term="rbi" /></p>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-mlb-text">
-                      {playerDetail.season_totals.home_runs}
-                    </p>
-                    <p className="text-[10px] text-mlb-muted">HR</p>
+
+                  {/* Stat Gauges */}
+                  <div className="space-y-2 mb-3">
+                    {playerDetail.season_totals.batting_avg != null && (
+                      <StatGauge value={playerDetail.season_totals.batting_avg} stat="batting_avg" />
+                    )}
+                    {playerDetail.season_totals.home_runs != null && (
+                      <StatGauge value={playerDetail.season_totals.home_runs} stat="home_runs" />
+                    )}
+                    {playerDetail.season_totals.rbi != null && (
+                      <StatGauge value={playerDetail.season_totals.rbi} stat="rbi" />
+                    )}
                   </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-mlb-text">
-                      {playerDetail.season_totals.rbi}
-                    </p>
-                    <p className="text-[10px] text-mlb-muted">RBI</p>
-                  </div>
+                </>
+              )}
+
+              {/* Stat Sparklines */}
+              {playerDetail.recent_stats && playerDetail.recent_stats.length > 1 && (
+                <div className="space-y-2 pt-3 border-t border-mlb-border">
+                  <p className="text-[10px] text-mlb-muted uppercase tracking-wider mb-1">
+                    Recent Trends
+                  </p>
+                  <StatTrendline
+                    data={buildTrendData("batting_avg")}
+                    label="Batting Avg"
+                    color="#e63946"
+                  />
+                  <StatTrendline
+                    data={buildTrendData("home_runs")}
+                    label="Home Runs"
+                    color="#4895ef"
+                  />
+                  <StatTrendline
+                    data={buildTrendData("rbi")}
+                    label="RBI"
+                    color="#2dc653"
+                  />
                 </div>
               )}
             </div>

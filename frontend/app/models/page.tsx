@@ -9,6 +9,9 @@ import TrainingCurvesChart from "@/components/charts/TrainingCurves";
 import BarComparison from "@/components/charts/BarComparison";
 import MetricCard from "@/components/cards/MetricCard";
 import { formatMetric } from "@/lib/utils";
+import PageIntro from "@/components/ui/PageIntro";
+import InfoTooltip from "@/components/ui/InfoTooltip";
+import { Brain } from "lucide-react";
 
 export default function ModelsPage() {
   const { data: status } = useTrainingStatus(true);
@@ -42,9 +45,17 @@ export default function ModelsPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      <PageIntro title="Train & Compare AI Models" icon={<Brain className="w-5 h-5" />} pageKey="models">
+        <p>
+          Train two different AI models on real MLB Statcast data. <strong>LSTM</strong> reads
+          a player&apos;s last 10 games in sequence to spot streaks and trends. <strong>XGBoost</strong> uses
+          statistical summaries (averages, trends) to find patterns. Compare their accuracy below.
+        </p>
+      </PageIntro>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Controls */}
-        <div className="space-y-4">
+        <div className="space-y-4" data-tour="train-controls">
           <TrainControls
             onTrain={handleTrain}
             isTraining={status?.is_training || false}
@@ -53,20 +64,20 @@ export default function ModelsPage() {
         </div>
 
         {/* Metrics */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-4" data-tour="metrics">
           {metrics && (metrics.lstm || metrics.xgboost) && (
             <>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {metrics.lstm && (
                   <>
                     <MetricCard
-                      label="LSTM MSE"
+                      label={<>LSTM MSE<InfoTooltip term="mse" /></>}
                       value={formatMetric(metrics.lstm.mse)}
                       delta={`R² = ${formatMetric(metrics.lstm.r2, 3)}`}
                       deltaType={metrics.lstm.r2 > 0 ? "positive" : "negative"}
                     />
                     <MetricCard
-                      label="LSTM MAE"
+                      label={<>LSTM MAE<InfoTooltip term="mae" /></>}
                       value={formatMetric(metrics.lstm.mae)}
                     />
                   </>
@@ -74,7 +85,7 @@ export default function ModelsPage() {
                 {metrics.xgboost && (
                   <>
                     <MetricCard
-                      label="XGBoost MSE"
+                      label={<>XGBoost MSE<InfoTooltip term="mse" /></>}
                       value={formatMetric(metrics.xgboost.mse)}
                       delta={`R² = ${formatMetric(metrics.xgboost.r2, 3)}`}
                       deltaType={metrics.xgboost.r2 > 0 ? "positive" : "negative"}

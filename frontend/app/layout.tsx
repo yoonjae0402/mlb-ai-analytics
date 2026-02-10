@@ -3,6 +3,7 @@ import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import Providers from "./providers";
+import GuidedWalkthrough from "@/components/ui/GuidedWalkthrough";
 
 export const metadata: Metadata = {
   title: "MLB AI Analytics",
@@ -25,6 +26,7 @@ export default function RootLayout({
               <main className="p-8">{children}</main>
             </div>
           </div>
+          <GuidedWalkthrough />
         </Providers>
       </body>
     </html>

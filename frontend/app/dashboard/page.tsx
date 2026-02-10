@@ -4,6 +4,7 @@ import { useLiveGames } from "@/hooks/useLiveGames";
 import GameCard from "@/components/cards/GameCard";
 import WinProbabilityChart from "@/components/charts/WinProbabilityChart";
 import { Activity, Calendar, Wifi } from "lucide-react";
+import PageIntro from "@/components/ui/PageIntro";
 
 export default function DashboardPage() {
   const { data, isLoading, error } = useLiveGames();
@@ -15,6 +16,14 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      <PageIntro title="Live MLB Game Tracking" icon={<Activity className="w-5 h-5" />} pageKey="dashboard">
+        <p>
+          See today&apos;s MLB games with live scores and AI-estimated win probabilities.
+          Click any game card to view its win probability chart — tracking how each team&apos;s
+          chances shift inning by inning.
+        </p>
+      </PageIntro>
+
       {/* Status Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

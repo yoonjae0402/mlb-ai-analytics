@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # Application code
 COPY src/ src/
 COPY backend/ backend/
-COPY config/ config/
+# COPY config/ config/
 
 # Non-root user
 RUN useradd -m appuser && chown -R appuser:appuser /app

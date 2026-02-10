@@ -3,54 +3,74 @@ import { useQuery } from "@tanstack/react-query";
 import { getDataStatus, getHealth } from "@/lib/api";
 import MetricCard from "@/components/cards/MetricCard";
 import {
-  BarChart3, Eye, Layers, Activity, Search, FileCode, Database, Sparkles,
+  BarChart3, Eye, Layers, Activity, Search, FileCode, Calendar,
+  TrendingUp, Users,
 } from "lucide-react";
 import Link from "next/link";
-import PageIntro from "@/components/ui/PageIntro";
-import WalkthroughCTA from "@/components/ui/WalkthroughCTA";
 
 const features = [
   {
-    title: "Model Comparison",
-    desc: "Train LSTM & XGBoost side-by-side on real MLB data",
-    href: "/models",
-    icon: BarChart3,
+    title: "Scores & Schedule",
+    desc: "Live games, scores, and win probability tracking",
+    href: "/dashboard",
+    icon: Activity,
+    color: "text-mlb-green",
+  },
+  {
+    title: "Prediction Hub",
+    desc: "AI-generated daily predictions with best bets",
+    href: "/dashboard/predictions",
+    icon: TrendingUp,
     color: "text-mlb-red",
   },
   {
-    title: "Attention Visualizer",
-    desc: "Inspect what the LSTM model focuses on",
+    title: "Schedule Calendar",
+    desc: "Weekly and monthly game calendar with matchups",
+    href: "/dashboard/schedule",
+    icon: Calendar,
+    color: "text-mlb-blue",
+  },
+  {
+    title: "Player Index",
+    desc: "Searchable index of all MLB and MiLB players",
+    href: "/dashboard/players",
+    icon: Users,
+    color: "text-purple-400",
+  },
+  {
+    title: "Player Predict",
+    desc: "Search any player and predict their next game",
+    href: "/predict",
+    icon: Search,
+    color: "text-yellow-400",
+  },
+  {
+    title: "Model Comparison",
+    desc: "Train LSTM & XGBoost side-by-side on real data",
+    href: "/models",
+    icon: BarChart3,
+    color: "text-orange-400",
+  },
+  {
+    title: "Attention Viz",
+    desc: "Inspect what the neural network focuses on",
     href: "/attention",
     icon: Eye,
-    color: "text-purple-400",
+    color: "text-cyan-400",
   },
   {
     title: "Ensemble Lab",
     desc: "Experiment with model combination strategies",
     href: "/ensemble",
     icon: Layers,
-    color: "text-mlb-blue",
+    color: "text-green-400",
   },
   {
-    title: "Real-Time Dashboard",
-    desc: "Live MLB games with win probability tracking",
-    href: "/dashboard",
-    icon: Activity,
-    color: "text-mlb-green",
-  },
-  {
-    title: "Prediction Explorer",
-    desc: "Search real players and predict their next game",
-    href: "/predict",
-    icon: Search,
-    color: "text-yellow-400",
-  },
-  {
-    title: "Architecture & Docs",
-    desc: "System design, data pipeline, and API reference",
+    title: "Architecture",
+    desc: "System design, pipeline docs, and API reference",
     href: "/architecture",
     icon: FileCode,
-    color: "text-cyan-400",
+    color: "text-mlb-muted",
   },
 ];
 
@@ -58,49 +78,40 @@ export default function HomePage() {
   const { data: health } = useQuery({
     queryKey: ["health"],
     queryFn: getHealth,
+    retry: false,
   });
   const { data: status } = useQuery({
     queryKey: ["dataStatus"],
     queryFn: getDataStatus,
+    retry: false,
   });
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      <PageIntro title="What is this platform?" icon={<Sparkles className="w-5 h-5" />} pageKey="home">
-        <p>
-          This platform uses AI to predict how MLB players will perform in their next game,
-          trained on real Statcast data (exit velocity, barrel rate, sprint speed, and more).
-          No baseball or machine learning expertise needed — just explore!
-        </p>
-      </PageIntro>
-
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Hero */}
-      <div className="text-center py-8" data-tour="hero">
-        <h1 className="text-4xl font-bold text-mlb-text">
-          <span className="text-mlb-red">MLB</span> AI Analytics Platform
+      <div className="py-6">
+        <h1 className="text-2xl font-bold text-mlb-text">
+          <span className="text-mlb-red">MLB</span> AI Analytics
         </h1>
-        <p className="text-mlb-muted mt-3 max-w-2xl mx-auto">
-          Predicting MLB player performance using deep learning on real Statcast
-          data. Powered by PyTorch, FastAPI, and Next.js.
+        <p className="text-sm text-mlb-muted mt-1 max-w-xl">
+          Professional baseball analytics with AI-powered predictions.
+          Real Statcast data, MiLB coverage, and automated daily projections.
         </p>
-        <div className="flex items-center justify-center gap-2 mt-4">
+        <div className="flex items-center gap-2 mt-3">
           <span
             className={`w-2 h-2 rounded-full ${
-              health?.status === "ok" ? "bg-mlb-green" : "bg-mlb-red"
+              health?.status === "ok" ? "bg-green-400" : "bg-mlb-muted"
             }`}
           />
-          <span className="text-xs text-mlb-muted">
+          <span className="text-[10px] text-mlb-muted">
             API {health?.status === "ok" ? "Connected" : "Offline"}
           </span>
-        </div>
-        <div className="mt-5">
-          <WalkthroughCTA />
         </div>
       </div>
 
       {/* Quick Stats */}
       {status && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <MetricCard
             label="Players Tracked"
             value={status.players_count}
@@ -123,20 +134,20 @@ export default function HomePage() {
       )}
 
       {/* Feature Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-tour="features">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {features.map((feat) => {
           const Icon = feat.icon;
           return (
             <Link
               key={feat.href}
               href={feat.href}
-              className="bg-mlb-card border border-mlb-border rounded-xl p-5 hover:border-mlb-blue/40 transition-colors group"
+              className="bg-mlb-card border border-mlb-border rounded-lg p-4 hover:border-mlb-blue/40 transition-colors group"
             >
-              <Icon className={`w-6 h-6 ${feat.color} mb-3`} />
+              <Icon className={`w-5 h-5 ${feat.color} mb-2`} />
               <h3 className="text-sm font-semibold text-mlb-text group-hover:text-mlb-blue transition-colors">
                 {feat.title}
               </h3>
-              <p className="text-xs text-mlb-muted mt-1">{feat.desc}</p>
+              <p className="text-[11px] text-mlb-muted mt-1">{feat.desc}</p>
             </Link>
           );
         })}

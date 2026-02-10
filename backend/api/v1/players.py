@@ -1,14 +1,27 @@
-"""Player search and profile endpoints."""
+"""Player search, index, and profile endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 
 from backend.db.session import get_db
 from backend.db.models import Player, PlayerStat, Prediction
-from backend.api.v1.schemas import PlayerResponse, PlayerDetail, PlayerStatsResponse
+from backend.api.v1.schemas import (
+    PlayerResponse, PlayerDetail, PlayerStatsResponse, PlayerIndexResponse,
+)
 
 router = APIRouter(prefix="/players", tags=["players"])
+
+
+def _player_to_response(p: Player) -> PlayerResponse:
+    return PlayerResponse(
+        id=p.id, mlb_id=p.mlb_id, name=p.name,
+        team=p.team, position=p.position, bats=p.bats, throws=p.throws,
+        headshot_url=p.headshot_url,
+        current_level=p.current_level,
+        prospect_rank=p.prospect_rank,
+        age=p.age,
+    )
 
 
 @router.get("/search", response_model=list[PlayerResponse])
@@ -25,13 +38,50 @@ async def search_players(
         .limit(limit)
     )
     players = result.scalars().all()
-    return [
-        PlayerResponse(
-            id=p.id, mlb_id=p.mlb_id, name=p.name,
-            team=p.team, position=p.position, bats=p.bats, throws=p.throws,
-        )
-        for p in players
-    ]
+    return [_player_to_response(p) for p in players]
+
+
+@router.get("/index", response_model=PlayerIndexResponse)
+async def player_index(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(25, ge=10, le=100),
+    team: str = Query(None),
+    level: str = Query(None),
+    position: str = Query(None),
+    search: str = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Paginated, filterable player index (MLB + MiLB)."""
+    query = select(Player)
+    count_query = select(func.count(Player.id))
+
+    if team:
+        query = query.where(Player.team == team)
+        count_query = count_query.where(Player.team == team)
+    if level:
+        query = query.where(Player.current_level == level)
+        count_query = count_query.where(Player.current_level == level)
+    if position:
+        query = query.where(Player.position == position)
+        count_query = count_query.where(Player.position == position)
+    if search:
+        query = query.where(Player.name.ilike(f"%{search}%"))
+        count_query = count_query.where(Player.name.ilike(f"%{search}%"))
+
+    total = (await db.execute(count_query)).scalar() or 0
+
+    offset = (page - 1) * per_page
+    result = await db.execute(
+        query.order_by(Player.name).offset(offset).limit(per_page)
+    )
+    players = result.scalars().all()
+
+    return PlayerIndexResponse(
+        players=[_player_to_response(p) for p in players],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
 
 
 @router.get("/{player_id}", response_model=PlayerDetail)
@@ -79,11 +129,7 @@ async def get_player(player_id: int, db: AsyncSession = Depends(get_db)):
         }
 
     return PlayerDetail(
-        player=PlayerResponse(
-            id=player.id, mlb_id=player.mlb_id, name=player.name,
-            team=player.team, position=player.position,
-            bats=player.bats, throws=player.throws,
-        ),
+        player=_player_to_response(player),
         recent_stats=[
             PlayerStatsResponse(
                 game_date=s.game_date,

@@ -22,6 +22,18 @@ logger = logging.getLogger(__name__)
 _PYBASEBALL_MIN_INTERVAL = 3.0
 _last_pybaseball_call = 0.0
 
+# MLB image URL templates
+HEADSHOT_URL = "https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{mlb_id}/headshot/67/current"
+TEAM_LOGO_URL = "https://www.mlbstatic.com/team-logos/{team_id}.svg"
+
+# MiLB level mapping for statsapi
+MILB_LEVELS = {
+    "AAA": "Triple-A",
+    "AA": "Double-A",
+    "A+": "High-A",
+    "A": "Single-A",
+}
+
 
 def _rate_limit():
     """Throttle pybaseball calls to avoid scraping bans."""
@@ -43,6 +55,16 @@ def _retry(func, max_retries=3, backoff=2.0):
             wait = backoff ** attempt
             logger.warning(f"Retry {attempt+1}/{max_retries}: {e}. Waiting {wait:.1f}s")
             time.sleep(wait)
+
+
+def get_headshot_url(mlb_id: int) -> str:
+    """Generate MLB headshot URL for a player."""
+    return HEADSHOT_URL.format(mlb_id=mlb_id)
+
+
+def get_team_logo_url(team_id: int) -> str:
+    """Generate team logo SVG URL."""
+    return TEAM_LOGO_URL.format(team_id=team_id)
 
 
 class MLBDataPipeline:
@@ -138,6 +160,103 @@ class MLBDataPipeline:
             logger.error(f"Error fetching schedule: {e}")
             return []
 
+    def fetch_schedule_range(self, start_date: str, end_date: str) -> list[dict]:
+        """Fetch games for a date range (for calendar views)."""
+        try:
+            return statsapi.schedule(start_date=start_date, end_date=end_date)
+        except Exception as e:
+            logger.error(f"Error fetching schedule range: {e}")
+            return []
+
+    def fetch_all_players(self, season: int) -> list[dict]:
+        """Fetch all players on 40-man rosters + top prospects.
+
+        Returns a list of dicts with player info including MLB ID, name, team,
+        position, and current level (MLB/AAA/AA/etc.).
+        """
+        cache_key = f"all_players_{season}"
+        cached = self.cache.get(cache_key, "rosters")
+        if cached is not None:
+            return cached.to_dict("records")
+
+        logger.info(f"Fetching all MLB rosters for {season}...")
+        all_players = []
+
+        try:
+            teams = statsapi.get("teams", {"sportId": 1, "season": season})
+            for team_info in teams.get("teams", []):
+                team_id = team_info["id"]
+                team_name = team_info.get("abbreviation", team_info.get("name", ""))
+
+                try:
+                    roster = statsapi.roster(team_id, rosterType="40Man", season=season)
+                    # Parse roster text — statsapi.roster returns formatted text
+                    # Use the API directly for structured data
+                    roster_data = statsapi.get(
+                        "team_roster",
+                        {"teamId": team_id, "rosterType": "40Man", "season": season},
+                    )
+                    for entry in roster_data.get("roster", []):
+                        person = entry.get("person", {})
+                        pos = entry.get("position", {})
+                        status = entry.get("status", {})
+                        all_players.append({
+                            "mlb_id": person.get("id"),
+                            "name": person.get("fullName", ""),
+                            "team": team_name,
+                            "team_id": team_id,
+                            "position": pos.get("abbreviation", ""),
+                            "current_level": "MLB" if "Active" in status.get("description", "") else "MiLB",
+                        })
+                except Exception as e:
+                    logger.warning(f"Error fetching roster for team {team_id}: {e}")
+                    continue
+
+        except Exception as e:
+            logger.error(f"Error fetching teams: {e}")
+
+        if all_players:
+            df = pd.DataFrame(all_players)
+            self.cache.set(cache_key, df)
+        return all_players
+
+    def fetch_milb_game_logs(self, player_id: int, season: int) -> list[dict]:
+        """Fetch minor league game logs for a player."""
+        cache_key = f"milb_game_logs_{player_id}_{season}"
+        cached = self.cache.get(cache_key, "game_logs")
+        if cached is not None:
+            return cached.to_dict("records")
+
+        logger.info(f"Fetching MiLB game logs for player {player_id}, season {season}")
+        logs = []
+        try:
+            # Try each minor league level
+            for level_code in ["11", "12", "13", "14"]:  # AAA, AA, High-A, A
+                params = {
+                    "personId": player_id,
+                    "stats": "gameLog",
+                    "group": "hitting",
+                    "season": season,
+                    "sportId": level_code,
+                }
+                try:
+                    data = statsapi.get("people_stats", params)
+                    if "stats" in data:
+                        for stat_group in data["stats"]:
+                            if "splits" in stat_group:
+                                for split in stat_group["splits"]:
+                                    split["_level"] = level_code
+                                logs.extend(stat_group["splits"])
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"Error fetching MiLB logs for {player_id}: {e}")
+
+        if logs:
+            df = pd.DataFrame(logs)
+            self.cache.set(cache_key, df)
+        return logs
+
     def seed_database(self, seasons: list[int] = None):
         """Fetch real MLB data and populate PostgreSQL tables.
 
@@ -148,12 +267,15 @@ class MLBDataPipeline:
             seasons = [2023, 2024]
 
         from backend.db.session import SyncSessionLocal, init_db_sync
-        from backend.db.models import Player, PlayerStat
+        from backend.db.models import Player, PlayerStat, Team
 
         init_db_sync()
         session = SyncSessionLocal()
 
         try:
+            # Seed teams first
+            self._seed_teams(session)
+
             for season in seasons:
                 logger.info(f"Seeding database with {season} data...")
                 df = self.fetch_batting_stats(season)
@@ -182,9 +304,15 @@ class MLBDataPipeline:
                             position="",
                             bats=str(row.get("Bats", "")),
                             throws=str(row.get("Throws", "")),
+                            headshot_url=get_headshot_url(mlb_id),
+                            current_level="MLB",
                         )
                         session.add(player)
                         session.flush()
+                    else:
+                        # Update headshot URL if missing
+                        if not player.headshot_url:
+                            player.headshot_url = get_headshot_url(mlb_id)
 
                     # Fetch game logs for this player
                     logs = self.fetch_player_game_logs(mlb_id, season)
@@ -210,6 +338,7 @@ class MLBDataPipeline:
                         ps = PlayerStat(
                             player_id=player.id,
                             game_date=gd,
+                            level="MLB",
                             batting_avg=_safe_float(stat_data.get("avg")),
                             obp=_safe_float(stat_data.get("obp")),
                             slg=_safe_float(stat_data.get("slg")),
@@ -240,6 +369,38 @@ class MLBDataPipeline:
             raise
         finally:
             session.close()
+
+    def _seed_teams(self, session):
+        """Seed all 30 MLB teams with logos."""
+        from backend.db.models import Team
+
+        try:
+            teams_data = statsapi.get("teams", {"sportId": 1})
+            for t in teams_data.get("teams", []):
+                team_id = t["id"]
+                existing = session.query(Team).filter_by(mlb_id=team_id).first()
+                if existing:
+                    continue
+
+                league_info = t.get("league", {})
+                division_info = t.get("division", {})
+
+                team = Team(
+                    mlb_id=team_id,
+                    name=t.get("name", ""),
+                    abbreviation=t.get("abbreviation", ""),
+                    league=league_info.get("abbreviation", ""),
+                    division=division_info.get("name", "").replace(
+                        "American League ", ""
+                    ).replace("National League ", ""),
+                    logo_url=get_team_logo_url(team_id),
+                )
+                session.add(team)
+            session.commit()
+            logger.info(f"Seeded {len(teams_data.get('teams', []))} teams")
+        except Exception as e:
+            logger.warning(f"Error seeding teams: {e}")
+            session.rollback()
 
     def _resolve_mlb_id(self, name: str) -> Optional[int]:
         """Resolve a player name to MLB ID via statsapi lookup."""

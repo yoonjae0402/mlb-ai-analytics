@@ -76,6 +76,10 @@ class PlayerResponse(BaseModel):
     position: Optional[str] = None
     bats: Optional[str] = None
     throws: Optional[str] = None
+    headshot_url: Optional[str] = None
+    current_level: Optional[str] = "MLB"
+    prospect_rank: Optional[int] = None
+    age: Optional[int] = None
 
 
 class PlayerStatsResponse(BaseModel):
@@ -93,6 +97,25 @@ class PlayerDetail(BaseModel):
     player: PlayerResponse
     recent_stats: list[PlayerStatsResponse]
     season_totals: Optional[dict] = None
+
+
+class PlayerIndexResponse(BaseModel):
+    players: list[PlayerResponse]
+    total: int
+    page: int
+    per_page: int
+
+
+# --- Teams ---
+
+class TeamResponse(BaseModel):
+    id: int
+    mlb_id: int
+    name: str
+    abbreviation: str
+    league: Optional[str] = None
+    division: Optional[str] = None
+    logo_url: Optional[str] = None
 
 
 # --- Attention ---
@@ -164,6 +187,48 @@ class LiveGamesResponse(BaseModel):
     mode: str  # "live", "schedule", "off_day"
 
 
+class ScheduleGameResponse(BaseModel):
+    game_id: int
+    game_date: str
+    away_team: str
+    home_team: str
+    away_score: Optional[int] = None
+    home_score: Optional[int] = None
+    status: str
+    venue: Optional[str] = None
+    away_probable_pitcher: Optional[str] = None
+    home_probable_pitcher: Optional[str] = None
+    game_datetime: Optional[str] = None
+    home_win_prob: Optional[float] = None
+
+
+class ScheduleResponse(BaseModel):
+    games: list[ScheduleGameResponse]
+    start_date: str
+    end_date: str
+
+
+# --- Predictions Hub ---
+
+class DailyPredictionResponse(BaseModel):
+    player_id: int
+    player_name: str
+    team: Optional[str] = None
+    headshot_url: Optional[str] = None
+    predicted_hits: float
+    predicted_hr: float
+    predicted_rbi: float
+    predicted_walks: float
+    confidence: Optional[float] = None
+    created_at: Optional[str] = None
+
+
+class PredictionsHubResponse(BaseModel):
+    predictions: list[DailyPredictionResponse]
+    total: int
+    last_updated: Optional[str] = None
+
+
 # --- Evaluation ---
 
 class EvaluationResponse(BaseModel):
@@ -198,3 +263,13 @@ class DataStatus(BaseModel):
     predictions_count: int
     last_updated: Optional[str] = None
     seasons: list[int]
+
+
+# --- Scheduler ---
+
+class SchedulerStatus(BaseModel):
+    running: bool
+    status: str
+    last_run: Optional[str] = None
+    next_run: Optional[str] = None
+    last_error: Optional[str] = None

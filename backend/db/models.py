@@ -2,7 +2,7 @@
 
 from datetime import datetime, date
 from sqlalchemy import (
-    Column, Integer, BigInteger, String, Float, Boolean, Date, DateTime,
+    Column, Integer, SmallInteger, BigInteger, String, Float, Boolean, Date, DateTime,
     Text, ForeignKey, JSON, UniqueConstraint, Index
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
@@ -12,19 +12,43 @@ class Base(DeclarativeBase):
     pass
 
 
+class Team(Base):
+    __tablename__ = "teams"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mlb_id = Column(Integer, unique=True, nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    abbreviation = Column(String(10), nullable=False)
+    league = Column(String(5))  # AL or NL
+    division = Column(String(20))  # East, Central, West
+    logo_url = Column(String(500))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    players = relationship("Player", back_populates="team_rel", lazy="dynamic")
+
+
 class Player(Base):
     __tablename__ = "players"
+    __table_args__ = (
+        Index("ix_players_team_level", "team", "current_level"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     mlb_id = Column(Integer, unique=True, nullable=False, index=True)
     name = Column(String(200), nullable=False)
     team = Column(String(100))
+    team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)
     position = Column(String(20))
     bats = Column(String(5))
     throws = Column(String(5))
+    headshot_url = Column(String(500))
+    current_level = Column(String(10), default="MLB")  # MLB, AAA, AA, A+, A
+    prospect_rank = Column(Integer, nullable=True)  # Top prospect ranking (1-100+)
+    age = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    team_rel = relationship("Team", back_populates="players")
     stats = relationship("PlayerStat", back_populates="player", lazy="dynamic")
     predictions = relationship("Prediction", back_populates="player", lazy="dynamic")
 
@@ -39,6 +63,7 @@ class PlayerStat(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     player_id = Column(Integer, ForeignKey("players.id"), nullable=False)
     game_date = Column(Date, nullable=False)
+    level = Column(String(10), default="MLB")  # MLB, AAA, AA, etc.
 
     # Core batting stats
     batting_avg = Column(Float)
@@ -60,19 +85,19 @@ class PlayerStat(Base):
     sprint_speed = Column(Float)
     park_factor = Column(Float)
 
-    # Game-level counting stats (targets)
-    hits = Column(Integer, default=0)
-    home_runs = Column(Integer, default=0)
-    rbi = Column(Integer, default=0)
-    walks = Column(Integer, default=0)
+    # Game-level counting stats (targets) — SmallInteger saves space
+    hits = Column(SmallInteger, default=0)
+    home_runs = Column(SmallInteger, default=0)
+    rbi = Column(SmallInteger, default=0)
+    walks = Column(SmallInteger, default=0)
 
     # Additional context
-    at_bats = Column(Integer, default=0)
-    plate_appearances = Column(Integer, default=0)
-    doubles = Column(Integer, default=0)
-    triples = Column(Integer, default=0)
-    strikeouts = Column(Integer, default=0)
-    stolen_bases = Column(Integer, default=0)
+    at_bats = Column(SmallInteger, default=0)
+    plate_appearances = Column(SmallInteger, default=0)
+    doubles = Column(SmallInteger, default=0)
+    triples = Column(SmallInteger, default=0)
+    strikeouts = Column(SmallInteger, default=0)
+    stolen_bases = Column(SmallInteger, default=0)
 
     player = relationship("Player", back_populates="stats")
 
@@ -89,6 +114,9 @@ class Game(Base):
     home_score = Column(Integer)
     status = Column(String(50))
     venue = Column(String(200))
+    away_probable_pitcher = Column(String(200))
+    home_probable_pitcher = Column(String(200))
+    game_datetime = Column(DateTime, nullable=True)
 
     predictions = relationship("Prediction", back_populates="game", lazy="dynamic")
 
@@ -125,6 +153,7 @@ class Prediction(Base):
     predicted_hr = Column(Float)
     predicted_rbi = Column(Float)
     predicted_walks = Column(Float)
+    confidence = Column(Float, nullable=True)  # Model confidence score
     created_at = Column(DateTime, default=datetime.utcnow)
 
     player = relationship("Player", back_populates="predictions")

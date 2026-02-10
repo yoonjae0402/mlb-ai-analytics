@@ -1,10 +1,11 @@
 "use client";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { getScheduleRange } from "@/lib/api";
 import type { ScheduleGame } from "@/lib/api";
 import {
-  Calendar, ChevronLeft, ChevronRight, Clock, MapPin,
+  Calendar, ChevronLeft, ChevronRight, Clock, MapPin, ExternalLink,
 } from "lucide-react";
 
 function formatDate(d: Date): string {
@@ -216,11 +217,16 @@ export default function SchedulePage() {
 }
 
 function ScheduleGameCard({ game, compact }: { game: ScheduleGame; compact: boolean }) {
+  const gameUrl = `/dashboard/game/${game.game_id}`;
+
   if (compact) {
     return (
-      <div className="text-[9px] text-mlb-text bg-mlb-surface/50 rounded px-1 py-0.5 truncate">
+      <Link
+        href={gameUrl}
+        className="block text-[9px] text-mlb-text bg-mlb-surface/50 rounded px-1 py-0.5 truncate hover:bg-mlb-blue/10 hover:text-mlb-blue transition-colors"
+      >
         {game.away_team} @ {game.home_team}
-      </div>
+      </Link>
     );
   }
 
@@ -228,13 +234,18 @@ function ScheduleGameCard({ game, compact }: { game: ScheduleGame; compact: bool
   const isLive = game.status?.toLowerCase().includes("in progress");
 
   return (
-    <div className="bg-mlb-surface/50 rounded p-1.5 text-[10px]">
+    <Link
+      href={gameUrl}
+      className="block bg-mlb-surface/50 rounded p-1.5 text-[10px] hover:bg-mlb-blue/10 hover:border-mlb-blue/30 transition-colors group"
+    >
       <div className="flex items-center justify-between">
-        <span className="font-medium text-mlb-text truncate">
+        <span className="font-medium text-mlb-text truncate group-hover:text-mlb-blue">
           {game.away_team} @ {game.home_team}
         </span>
-        {isLive && (
+        {isLive ? (
           <span className="text-mlb-red font-semibold text-[8px]">LIVE</span>
+        ) : (
+          <ExternalLink className="w-2.5 h-2.5 text-mlb-muted opacity-0 group-hover:opacity-100 transition-opacity" />
         )}
       </div>
       {(isFinal || isLive) && game.away_score != null && (
@@ -254,6 +265,6 @@ function ScheduleGameCard({ game, compact }: { game: ScheduleGame; compact: bool
           {game.away_probable_pitcher || "TBD"} vs {game.home_probable_pitcher}
         </div>
       )}
-    </div>
+    </Link>
   );
 }

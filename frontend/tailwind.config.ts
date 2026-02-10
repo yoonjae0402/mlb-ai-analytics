@@ -10,15 +10,17 @@ const config: Config = {
     extend: {
       colors: {
         mlb: {
-          bg: "#0a1628",
-          card: "#111d32",
-          border: "#1e3050",
+          bg: "#0f172a",
+          card: "#1e293b",
+          border: "#334155",
           red: "#e63946",
           blue: "#4895ef",
-          green: "#2dc653",
-          text: "#e8ecf1",
-          muted: "#8899aa",
-          surface: "#162240",
+          green: "#22c55e",
+          text: "#f1f5f9",
+          muted: "#94a3b8",
+          surface: "#1e293b",
+          gold: "#f59e0b",
+          orange: "#f97316",
         },
       },
       fontFamily: {

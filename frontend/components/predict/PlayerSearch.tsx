@@ -10,7 +10,7 @@ interface PlayerSearchProps {
 }
 
 export default function PlayerSearch({ onSelect, selectedId }: PlayerSearchProps) {
-  const { query, setQuery, data: players, isLoading } = usePlayerSearch();
+  const { query, setQuery, data: players, isLoading, error } = usePlayerSearch();
 
   return (
     <div>
@@ -20,13 +20,19 @@ export default function PlayerSearch({ onSelect, selectedId }: PlayerSearchProps
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search MLB players..."
+          placeholder="Search players by name..."
           className="w-full bg-mlb-surface border border-mlb-border rounded-lg pl-10 pr-4 py-2 text-sm text-mlb-text placeholder:text-mlb-muted focus:outline-none focus:border-mlb-blue"
         />
       </div>
 
       {isLoading && (
         <p className="text-xs text-mlb-muted">Searching...</p>
+      )}
+
+      {error && (
+        <p className="text-xs text-mlb-red">
+          Search unavailable — make sure the backend is running.
+        </p>
       )}
 
       {players && players.length > 0 && (
@@ -42,8 +48,10 @@ export default function PlayerSearch({ onSelect, selectedId }: PlayerSearchProps
         </div>
       )}
 
-      {players && players.length === 0 && query.length >= 2 && (
-        <p className="text-xs text-mlb-muted">No players found</p>
+      {players && players.length === 0 && query.length >= 2 && !error && (
+        <p className="text-xs text-mlb-muted">
+          No players found for &ldquo;{query}&rdquo;. Try a different name.
+        </p>
       )}
     </div>
   );

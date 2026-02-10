@@ -1,7 +1,9 @@
 "use client";
 import type { PredictionResult as PredResult } from "@/lib/api";
-import MetricCard from "@/components/cards/MetricCard";
-import { TARGET_DISPLAY_NAMES } from "@/lib/constants";
+import ContextBadge from "@/components/ui/ContextBadge";
+import PercentileBar from "@/components/ui/PercentileBar";
+import StatTooltip from "@/components/ui/StatTooltip";
+import { formatStatValue } from "@/lib/stat-helpers";
 
 interface PredictionResultProps {
   result: PredResult;
@@ -28,11 +30,21 @@ export default function PredictionResultView({ result }: PredictionResultProps) 
 
       <div className="grid grid-cols-2 gap-3">
         {targets.map((t) => (
-          <MetricCard
-            key={t.key}
-            label={t.label}
-            value={t.value.toFixed(2)}
-          />
+          <div key={t.key} className="bg-mlb-card border border-mlb-border rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] text-mlb-muted uppercase tracking-wider">
+                {t.label}
+                <StatTooltip stat={t.key} />
+              </span>
+              <ContextBadge stat={t.key} value={t.value} />
+            </div>
+            <p className={`text-2xl font-bold mb-2 ${
+              t.key === "predicted_hr" ? "text-mlb-red" : "text-mlb-text"
+            }`}>
+              {formatStatValue(t.key, t.value)}
+            </p>
+            <PercentileBar stat={t.key} value={t.value} />
+          </div>
         ))}
       </div>
 

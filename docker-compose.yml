@@ -27,6 +27,8 @@ services:
       MLB_DATABASE_URL: "postgresql+asyncpg://mlb:mlb@postgres:5432/mlb_analytics"
       MLB_DATABASE_URL_SYNC: "postgresql://mlb:mlb@postgres:5432/mlb_analytics"
       MLB_CORS_ORIGINS: '["http://localhost:3000"]'
+    env_file:
+      - .env
     depends_on:
       postgres:
         condition: service_healthy

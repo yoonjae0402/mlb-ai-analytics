@@ -265,6 +265,51 @@ class DataStatus(BaseModel):
     seasons: list[int]
 
 
+# --- Game Detail & Predictions ---
+
+class GameDetailResponse(BaseModel):
+    game_id: int
+    away_team: str
+    home_team: str
+    away_score: Optional[int] = None
+    home_score: Optional[int] = None
+    status: str
+    venue: Optional[str] = None
+    away_probable_pitcher: Optional[str] = None
+    home_probable_pitcher: Optional[str] = None
+    game_datetime: Optional[str] = None
+    game_date: Optional[str] = None
+    away_team_id: Optional[int] = None
+    home_team_id: Optional[int] = None
+
+
+class GamePlayerPrediction(BaseModel):
+    player_id: int
+    mlb_id: int
+    name: str
+    team: Optional[str] = None
+    position: Optional[str] = None
+    headshot_url: Optional[str] = None
+    predicted_hits: Optional[float] = None
+    predicted_hr: Optional[float] = None
+    predicted_rbi: Optional[float] = None
+    predicted_walks: Optional[float] = None
+    confidence: Optional[float] = None
+    has_prediction: bool = False
+
+
+class GamePredictionsResponse(BaseModel):
+    game: GameDetailResponse
+    home_players: list[GamePlayerPrediction]
+    away_players: list[GamePlayerPrediction]
+
+
+# --- Player Compare ---
+
+class PlayerCompareResponse(BaseModel):
+    players: list[PlayerDetail]
+
+
 # --- Scheduler ---
 
 class SchedulerStatus(BaseModel):

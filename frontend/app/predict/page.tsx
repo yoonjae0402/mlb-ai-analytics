@@ -12,6 +12,8 @@ import InfoTooltip from "@/components/ui/InfoTooltip";
 import PlayerHeadshot from "@/components/ui/PlayerHeadshot";
 import StatTrendline from "@/components/charts/StatTrendline";
 import StatGauge from "@/components/ui/StatGauge";
+import ContextBadge from "@/components/ui/ContextBadge";
+import StatTooltip from "@/components/ui/StatTooltip";
 import { Search } from "lucide-react";
 
 export default function PredictPage() {
@@ -124,19 +126,34 @@ export default function PredictPage() {
                       <p className="text-lg font-bold text-mlb-text">
                         {playerDetail.season_totals.batting_avg?.toFixed(3)}
                       </p>
-                      <p className="text-[10px] text-mlb-muted">AVG<InfoTooltip term="batting_avg" /></p>
+                      <div className="flex items-center justify-center gap-1">
+                        <p className="text-[10px] text-mlb-muted">AVG<StatTooltip stat="batting_avg" /></p>
+                        {playerDetail.season_totals.batting_avg != null && (
+                          <ContextBadge stat="batting_avg" value={playerDetail.season_totals.batting_avg} />
+                        )}
+                      </div>
                     </div>
                     <div className="text-center">
                       <p className="text-lg font-bold text-mlb-text">
                         {playerDetail.season_totals.home_runs}
                       </p>
-                      <p className="text-[10px] text-mlb-muted">HR<InfoTooltip term="home_runs" /></p>
+                      <div className="flex items-center justify-center gap-1">
+                        <p className="text-[10px] text-mlb-muted">HR<StatTooltip stat="home_runs" /></p>
+                        {playerDetail.season_totals.home_runs != null && (
+                          <ContextBadge stat="home_runs" value={playerDetail.season_totals.home_runs} />
+                        )}
+                      </div>
                     </div>
                     <div className="text-center">
                       <p className="text-lg font-bold text-mlb-text">
                         {playerDetail.season_totals.rbi}
                       </p>
-                      <p className="text-[10px] text-mlb-muted">RBI<InfoTooltip term="rbi" /></p>
+                      <div className="flex items-center justify-center gap-1">
+                        <p className="text-[10px] text-mlb-muted">RBI<StatTooltip stat="rbi" /></p>
+                        {playerDetail.season_totals.rbi != null && (
+                          <ContextBadge stat="rbi" value={playerDetail.season_totals.rbi} />
+                        )}
+                      </div>
                     </div>
                   </div>
 

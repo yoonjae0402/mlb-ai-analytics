@@ -1,76 +1,49 @@
-# Implementation Plan - "Pro Analytics" Dashboard & MiLB Expansion
+# Goal Description
+The goal is to ensure the MLB Analytics website shows player stats and allows searching even when no games are scheduled for the current day. This involves fixing a likely issue where the search component or data retrieval assumes active games. Additionally, the schedule component will be updated to be interactive, allowing users to click on a game to view detailed predictions for the players involved.
 
-Goal: Transform the project into a professional-grade MLB analytics platform (similar to Baseball Savant/FanGraphs) with full minor league coverage and rich visual assets.
+Furthermore, a significant design overhaul will be applied to make the site more "beginner friendly" (easier to read stats, professional color scheme, clear explanations), taking inspiration from a simplified FanGraphs aesthetic.
 
 ## User Review Required
-> [!IMPORTANT]
-> This is a major scope expansion. Database size will increase significantly with MiLB players.
-> I will need to use standard MLB image endpoints. If these change or have strict CORS policies, images might not load directly on the frontend without a proxy.
+None.
 
 ## Proposed Changes
 
-### 1. Data Pipeline & Automation (No Manual Training)
-#### [NEW] [src/services/scheduler.py]
-- **Automated Prediction Job**: Cron job (e.g., 4 AM ET) that:
-    1. Fetches latest game data.
-    2. Retrains/Fine-tunes models on new data.
-    3. Generates predictions for *all* upcoming games.
-    4. Caches results in the DB for instant frontend access.
+### Frontend - Design Overhaul (Beginner Friendly)
+- **Visual Style**: Switch to a cleaner, more professional color palette (modern slate/gray base instead of deep blue). Improve contrast and readability.
+- **Context Badges**: Add "Elite" (Gold), "Great" (Green), "Average" (Gray), "Poor" (Orange) pills next to advanced stats.
+- **Plain English Tooltips**: Replace math definitions with "Why it matters" explanations (e.g., "wRC+ measures total offense. 100 is average.").
+- **Percentile Bars**: Visualize stats as 0-99 ratings (like video games) for instant understanding.
+- **Trend Indicators**: Add simple ↑ ↓ arrows to show recent form (last 10 games vs season average).
+- **Luck Meter**: Visual comparison of actual vs expected stats (e.g., wOBA vs xwOBA) to show if a player is "Lucky" or "Unlucky".
 
-#### [MODIFY] [pipeline.py](file:///Users/yunjaejung/Desktop/mlb-ai-analytics/src/data/pipeline.py)
-- **Full Roster Fetch**: Add `fetch_all_players(season)` to get everyone on 40-man rosters + top prospects.
-- **MiLB Stats**: Update `fetch_batting_stats` to include minor league levels (AAA, AA, etc.).
-- **Image URLs**: Add helper methods to generate headshot and logo URLs based on IDs.
+### Frontend - Features
+- **Game Prediction Page**: Create `frontend/app/dashboard/game/[gameId]/page.tsx` using the new design system.
+- **Update Schedule**: Add interaction to the schedule component to link to the new game prediction page.
+- **Comparison Tool**: Create `frontend/app/dashboard/compare/page.tsx` for side-by-side player analysis. Use "Context Badges" to make advantages obvious (e.g., highlighting the text green if one player is "Elite" and the other "Average").
+- **Search Robustness**: Verify player search handles empty states gracefully and ensure the issue isn't due to missing data.
 
-#### [MODIFY] [models.py](file:///Users/yunjaejung/Desktop/mlb-ai-analytics/backend/db/models.py)
-- **Enhanced Player Model**: Add fields for `headshot_url`, `current_level` (MLB/AAA/etc.), `prospect_rank`.
-- **Team Model**: Add `logo_url`, `abbreviation`, `league`, `division`.
-- **Optimization**:
-    - **Composite Indexes**: Add indexes on `(team, current_level)` for fast filtering.
-    - **Date Partitioning** (Future Proofing): Prepare `player_stats` for partitioning by season if rows exceed 10M.
-    - **Data Types**: Use `SmallInteger` for count stats (hits, HRs) to save space.
+### Backend
+- **Get Game Endpoint**: Add `GET /v1/games/{game_id}` to `backend/api/v1/games.py` to fetch a specific game's details (using `statsapi.schedule`).
+- **Game Predictions Endpoint**: Create `GET /v1/games/{game_id}/predictions`. Logic:
+    1. Fetch game details to identify Home/Away teams.
+    2. Fetch active rosters for both teams (cached via `pipeline.fetch_all_players` or similar).
+    3. Query the `predictions` table for the latest prediction for each player on the roster.
+    4. Return a structured response with game info and two lists of player predictions.
 
-### 2. Frontend Overhaul (Professional UI)
-#### [NEW] [components/layout/ModernSidebar.tsx]
-- Create a collapsible, professional sidebar navigation (Scores/Schedule, Predictions, Players, Teams, Leaders, Analysis).
-
-#### [NEW] [components/visuals/PlayerHeadshot.tsx]
-- Component to handle player images with fallbacks for missing photos (common in MiLB).
-
-#### [NEW] [components/visuals/TeamLogo.tsx]
-- SVG logo component.
-
-#### [MODIFY] [app/dashboard/page.tsx]
-- **Dashboard Redesign**: Replace "Portfolio" look with a dense data dashboard.
-- **Remove**: "Train Model" controls.
-- **Add**: "System Status" widget showing "Last Updated: [Time]" and "Next Prediction: [Time]".
-- **Widgets**:
-    - **"Benefit of the Doubt"**: Top 5 predictions where our model disagrees with Vegas odds.
-
-#### [NEW] [app/dashboard/players/page.tsx]
-- **Player Index**: Searchable, filterable table of ALL players (MLB + MiLB).
-- **Filters**: Team, Level, Position, Age.
-
-#### [NEW] [app/dashboard/schedule/page.tsx]
-- **Calendar View**: Monthly/Weekly view of games.
-- **Game Cards**: Show probable pitchers, time, and *win probability* (if game is live/future).
-
-#### [NEW] [app/dashboard/predictions/page.tsx]
-- **Prediction Hub**: Central place for all model outputs.
-- **Daily Best Bets**: Top high-confidence predictions for today's games.
-
-### 3. ML: "Call-Up" Analysis
-#### [NEW] [src/analysis/prospect_ranking.py]
-- **Translation Factors**: Implement Minor League layout translation (MLE) logic to project MiLB stats to MLB equivalents.
-- **Projection**: Use the existing LSTM model on *translated* MiLB stats to predict MLB impact.
+### Database / Data
+- **Verify Seeding**: Ensure the `players` table is populated. The search issue might be due to an empty database if `seed_database` wasn't run or failed.
 
 ## Verification Plan
-
-### Automated Tests
-- Verify `statsapi` returns MiLB data correctly.
-- Test "Translation Factors" logic with known players (e.g., Jackson Holliday's 2024 projections).
-
 ### Manual Verification
-- **Visual Check**: Ensure team logos and player headshots load correctly on the dashboard.
-- **Data Completeness**: Search for a known minor leaguer (e.g., a top 100 prospect) and verify their stats appear.
-- **UI UX**: Confirm the "Portfolio" feel is gone, replaced by a dense, data-rich interface.
+- **Visual Check**: Ensure new colors are professional and text is high-contrast.
+- **Context Check**: Verify badges and tooltips appear correctly and match the data.
+- **No Games Scenario**:
+    - Verify player search works even if the schedule API returns nothing for today.
+    - If the `games` table is empty in the DB, ensure search still queries the `players` table correctly.
+- **Schedule Click**:
+    - Click a game in the schedule view.
+    - Verify navigation to `/dashboard/game/[gameId]`.
+    - Verify the new page shows predictions for players on both teams.
+- **Comparison Check**:
+    - Select two players in the Comparison Tool.
+    - Verify stats are shown side-by-side with correct "Elite/Avg" context badges.

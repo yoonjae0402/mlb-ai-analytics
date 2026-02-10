@@ -1,9 +1,19 @@
-"""Live games and schedule endpoints."""
+"""Live games, game detail, and game predictions endpoints."""
 
-from fastapi import APIRouter
+import logging
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
 
-from backend.api.v1.schemas import LiveGamesResponse, GameResponse
+from backend.api.v1.schemas import (
+    LiveGamesResponse, GameResponse, GameDetailResponse,
+    GamePlayerPrediction, GamePredictionsResponse,
+)
+from backend.db.session import get_db
+from backend.db.models import Player, Prediction
 from src.services.realtime import fetch_live_games
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -25,4 +35,123 @@ async def todays_games():
     return LiveGamesResponse(
         games=[GameResponse(**g) for g in games],
         mode=mode,
+    )
+
+
+@router.get("/{game_id}", response_model=GameDetailResponse)
+async def get_game_detail(game_id: int):
+    """Get details for a specific game."""
+    try:
+        import statsapi
+        schedule = statsapi.schedule(game_id=game_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch game {game_id}: {e}")
+        raise HTTPException(status_code=502, detail=f"MLB API error: {e}")
+
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    g = schedule[0]
+    return GameDetailResponse(
+        game_id=g.get("game_id", game_id),
+        away_team=g.get("away_name", ""),
+        home_team=g.get("home_name", ""),
+        away_score=g.get("away_score"),
+        home_score=g.get("home_score"),
+        status=g.get("status", "Scheduled"),
+        venue=g.get("venue_name", ""),
+        away_probable_pitcher=g.get("away_probable_pitcher", "TBD"),
+        home_probable_pitcher=g.get("home_probable_pitcher", "TBD"),
+        game_datetime=g.get("game_datetime", ""),
+        game_date=g.get("game_date", ""),
+        away_team_id=g.get("away_id"),
+        home_team_id=g.get("home_id"),
+    )
+
+
+@router.get("/{game_id}/predictions", response_model=GamePredictionsResponse)
+async def get_game_predictions(
+    game_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get player predictions for a specific game.
+
+    Fetches rosters for both teams and their latest predictions.
+    """
+    # 1. Get game details
+    try:
+        import statsapi
+        schedule = statsapi.schedule(game_id=game_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch game {game_id}: {e}")
+        raise HTTPException(status_code=502, detail=f"MLB API error: {e}")
+
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    g = schedule[0]
+    game_detail = GameDetailResponse(
+        game_id=g.get("game_id", game_id),
+        away_team=g.get("away_name", ""),
+        home_team=g.get("home_name", ""),
+        away_score=g.get("away_score"),
+        home_score=g.get("home_score"),
+        status=g.get("status", "Scheduled"),
+        venue=g.get("venue_name", ""),
+        away_probable_pitcher=g.get("away_probable_pitcher", "TBD"),
+        home_probable_pitcher=g.get("home_probable_pitcher", "TBD"),
+        game_datetime=g.get("game_datetime", ""),
+        game_date=g.get("game_date", ""),
+        away_team_id=g.get("away_id"),
+        home_team_id=g.get("home_id"),
+    )
+
+    # 2. Get rosters - match players from our DB by team name
+    home_team_name = g.get("home_name", "")
+    away_team_name = g.get("away_name", "")
+
+    async def get_team_players(team_name: str) -> list[GamePlayerPrediction]:
+        """Look up players in our DB for this team and get their latest predictions."""
+        result = await db.execute(
+            select(Player)
+            .where(Player.team.ilike(f"%{team_name}%"))
+            .order_by(Player.name)
+        )
+        players = result.scalars().all()
+
+        player_preds = []
+        for p in players:
+            # Get latest prediction for this player
+            pred_result = await db.execute(
+                select(Prediction)
+                .where(Prediction.player_id == p.id)
+                .order_by(desc(Prediction.created_at))
+                .limit(1)
+            )
+            pred = pred_result.scalar_one_or_none()
+
+            player_preds.append(GamePlayerPrediction(
+                player_id=p.id,
+                mlb_id=p.mlb_id,
+                name=p.name,
+                team=p.team,
+                position=p.position,
+                headshot_url=p.headshot_url,
+                predicted_hits=pred.predicted_hits if pred else None,
+                predicted_hr=pred.predicted_hr if pred else None,
+                predicted_rbi=pred.predicted_rbi if pred else None,
+                predicted_walks=pred.predicted_walks if pred else None,
+                confidence=pred.confidence if pred else None,
+                has_prediction=pred is not None,
+            ))
+
+        return player_preds
+
+    home_players = await get_team_players(home_team_name)
+    away_players = await get_team_players(away_team_name)
+
+    return GamePredictionsResponse(
+        game=game_detail,
+        home_players=home_players,
+        away_players=away_players,
     )

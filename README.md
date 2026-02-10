@@ -7,7 +7,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.108-009688)
 
-An end-to-end ML platform that predicts MLB player performance using deep learning on real Statcast data. Features a dark-themed Next.js dashboard, FastAPI backend, and PostgreSQL database.
+An end-to-end ML platform that predicts MLB player performance using deep learning on real Statcast data. Features a beginner-friendly Next.js dashboard with contextual stat badges, interactive game predictions, and player comparisons.
 
 ## What This Does
 
@@ -17,15 +17,15 @@ Predicts next-game batting stats (hits, HR, RBI, walks) for MLB players using a 
 
 ```
 pybaseball / MLB Stats API
-        ↓
+        |
    PostgreSQL (player_stats, games, predictions)
-        ↓
+        |
    Feature Engineering (rolling averages, trends, Statcast metrics)
-        ↓
-   Models: BiLSTM + Attention │ XGBoost │ Ensemble
-        ↓
+        |
+   Models: BiLSTM + Attention | XGBoost | Ensemble
+        |
    FastAPI REST API (async, background training)
-        ↓
+        |
    Next.js 14 Dashboard (React Query, Recharts, Tailwind)
 ```
 
@@ -74,21 +74,32 @@ npm run dev
 ### Verify
 
 ```bash
-curl localhost:8000/health              # → {"status": "ok", "version": "2.0.0"}
-curl "localhost:8000/v1/players/search?q=judge"  # → Aaron Judge
+curl localhost:8000/health              # {"status": "ok", "version": "2.0.0"}
+curl "localhost:8000/v1/players/search?q=judge"  # Aaron Judge
 ```
 
 ## Key Features
 
-### 7 Interactive Pages
+### 10 Interactive Pages
 
-1. **Overview** — Platform status, data freshness, quick stats
-2. **Model Comparison** — Train LSTM & XGBoost side-by-side, live training curves
-3. **Attention Visualizer** — Inspect what the LSTM model focuses on (heatmaps + gradient attribution)
-4. **Ensemble Lab** — Weighted average vs stacking, weight sensitivity analysis
-5. **Real-Time Dashboard** — Live MLB games with win probability tracking
-6. **Prediction Explorer** — Search real players, predict next-game stats
-7. **Architecture & Docs** — System design, API reference, model documentation
+1. **Dashboard** — Live scores, system status, top predictions
+2. **Schedule Calendar** — Week/month view with clickable games
+3. **Game Predictions** — Click any game to see AI predictions for every player on both rosters
+4. **Player Predict** — Search any player, predict next-game stats with context badges and percentile bars
+5. **Player Index** — Browse all players with filtering
+6. **Compare Players** — Side-by-side stat comparison with context badges, trend indicators, and winner highlighting
+7. **Model Comparison** — Train LSTM & XGBoost side-by-side, live training curves
+8. **Attention Visualizer** — Inspect what the LSTM model focuses on (heatmaps + gradient attribution)
+9. **Ensemble Lab** — Weighted average vs stacking, weight sensitivity analysis
+10. **Architecture & Docs** — System design, API reference, model documentation
+
+### Beginner-Friendly Design System
+
+- **Context Badges** — "Elite" (gold), "Great" (green), "Average" (gray), "Below Avg" (orange) pills next to every stat
+- **Percentile Bars** — 0-99 ratings like a video game for instant understanding
+- **Plain-English Tooltips** — Hover any stat for a "Why it matters" explanation instead of math definitions
+- **Trend Indicators** — Up/down arrows showing recent form vs season average
+- **Luck Meter** — Visual comparison of actual vs expected stats (wOBA vs xwOBA)
 
 ### Models
 
@@ -111,21 +122,29 @@ curl "localhost:8000/v1/players/search?q=judge"  # → Aaron Judge
 | GET | `/health` | Health check |
 | POST | `/v1/train` | Train LSTM + XGBoost |
 | GET | `/v1/train/status` | Training progress |
-| POST | `/v1/predict/player` | Predict next-game stats |
-| GET | `/v1/players/search?q=` | Search players |
-| GET | `/v1/players/{id}` | Player profile + stats |
-| POST | `/v1/attention/weights` | Attention heatmap |
-| POST | `/v1/ensemble/predict` | Ensemble prediction |
-| GET | `/v1/games/live` | Live MLB games |
-| GET | `/v1/model/evaluation` | Full evaluation + baselines |
 | GET | `/v1/train/curves` | Training loss curves |
+| POST | `/v1/predict/player` | Predict next-game stats |
+| GET | `/v1/players/search?q=` | Search players by name |
+| GET | `/v1/players/index` | Paginated player index |
+| GET | `/v1/players/compare?ids=1,2` | Side-by-side player comparison |
+| GET | `/v1/players/{id}` | Player profile + stats |
+| GET | `/v1/players/{id}/predictions` | Player prediction history |
+| GET | `/v1/games/live` | Live MLB games |
+| GET | `/v1/games/today` | Today's schedule |
+| GET | `/v1/games/{id}` | Game detail |
+| GET | `/v1/games/{id}/predictions` | Player predictions for a game |
+| GET | `/v1/schedule/range` | Schedule for date range |
+| GET | `/v1/schedule/today` | Today's schedule |
+| GET | `/v1/teams/` | All 30 MLB teams |
+| GET | `/v1/predictions/daily` | Daily predictions hub |
+| GET | `/v1/predictions/best-bets` | Top confidence predictions |
+| POST | `/v1/attention/weights` | Attention heatmap |
+| POST | `/v1/attention/feature-attribution` | Gradient feature importance |
+| POST | `/v1/ensemble/predict` | Ensemble prediction |
+| GET | `/v1/ensemble/weight-sensitivity` | Weight sweep analysis |
+| GET | `/v1/model/evaluation` | Full evaluation + baselines |
 | GET | `/v1/data/status` | Data freshness |
 | POST | `/v1/data/refresh` | Trigger data refresh |
-| POST | `/v1/attention/feature-attribution` | Gradient feature importance |
-| GET | `/v1/ensemble/weight-sensitivity` | Weight sweep analysis |
-| GET | `/v1/games/today` | Today's schedule |
-| GET | `/v1/model/metrics` | Raw model metrics |
-| GET | `/v1/players/{id}/predictions` | Player prediction history |
 | POST | `/v1/tune` | Start Optuna tuning |
 | GET | `/v1/tune/status` | Tuning progress |
 
@@ -156,6 +175,7 @@ Settings can also be loaded from a `.env` file.
 - **Temporal splits are essential.** Random train/test splits in time-series data produce misleadingly optimistic metrics due to data leakage.
 - **LSTM marginally beats XGBoost on sequential patterns**, but the gap is smaller than expected. XGBoost with engineered features is a strong baseline.
 - **Baseball is inherently noisy.** Single-game predictions have high variance — this is a fundamental property of the sport, not a model limitation.
+- **Stat context is everything for beginners.** Showing ".285 AVG" means nothing to a casual fan. Showing ".285 AVG (Great)" with a green badge and a percentile bar makes it instantly understandable.
 
 ## Limitations
 
@@ -170,20 +190,28 @@ Settings can also be loaded from a `.env` file.
 mlb-ai-analytics/
 ├── .github/workflows/          # CI (ci.yml) + daily data refresh (daily.yml)
 ├── frontend/                   # Next.js 14 dashboard
-│   ├── app/                    # App Router pages (7 pages)
-│   ├── components/             # React components
+│   ├── app/                    # App Router pages
+│   │   ├── dashboard/          # Dashboard, schedule, game detail, compare, players, predictions
+│   │   ├── predict/            # Player prediction page
+│   │   ├── models/             # Model comparison page
+│   │   ├── attention/          # Attention visualizer
+│   │   ├── ensemble/           # Ensemble lab
+│   │   └── architecture/       # Architecture docs
+│   ├── components/
 │   │   ├── cards/              # MetricCard, GameCard, PlayerCard
 │   │   ├── charts/             # TrainingCurves, AttentionHeatmap, WinProbability, etc.
-│   │   ├── layout/             # Sidebar, Header
+│   │   ├── layout/             # ModernSidebar, Header
 │   │   ├── predict/            # PlayerSearch, PredictionResult
-│   │   └── train/              # TrainControls, TrainProgress
-│   ├── hooks/                  # React Query hooks
-│   └── lib/                    # API client, types, utilities
+│   │   ├── train/              # TrainControls, TrainProgress
+│   │   ├── ui/                 # ContextBadge, PercentileBar, TrendIndicator, LuckMeter, StatTooltip
+│   │   └── visuals/            # PlayerHeadshot
+│   ├── hooks/                  # React Query hooks (useLiveGames, usePlayerSearch, usePrediction)
+│   └── lib/                    # API client, types, stat helpers, constants
 ├── backend/                    # FastAPI application
 │   ├── main.py                 # FastAPI entry point
-│   ├── api/v1/                 # REST endpoints
+│   ├── api/v1/                 # REST endpoints (train, predict, players, games, schedule, etc.)
 │   ├── core/                   # Model service, evaluation, tuning, config
-│   ├── db/                     # SQLAlchemy models, session
+│   ├── db/                     # SQLAlchemy models (Player, PlayerStat, Game, Prediction), session
 │   └── tasks/                  # Background data refresh
 ├── src/
 │   ├── data/                   # Data pipeline, feature engineering

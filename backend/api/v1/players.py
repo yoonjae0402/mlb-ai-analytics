@@ -1,4 +1,4 @@
-"""Player search, index, and profile endpoints."""
+"""Player search, index, profile, and comparison endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,7 @@ from backend.db.session import get_db
 from backend.db.models import Player, PlayerStat, Prediction
 from backend.api.v1.schemas import (
     PlayerResponse, PlayerDetail, PlayerStatsResponse, PlayerIndexResponse,
+    PlayerCompareResponse,
 )
 
 router = APIRouter(prefix="/players", tags=["players"])
@@ -82,6 +83,80 @@ async def player_index(
         page=page,
         per_page=per_page,
     )
+
+
+@router.get("/compare", response_model=PlayerCompareResponse)
+async def compare_players(
+    ids: str = Query(..., description="Comma-separated player IDs (max 4)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Compare multiple players side-by-side."""
+    try:
+        player_ids = [int(x.strip()) for x in ids.split(",")]
+    except ValueError:
+        raise HTTPException(400, "Invalid player IDs format")
+
+    if len(player_ids) > 4:
+        raise HTTPException(400, "Maximum 4 players for comparison")
+    if len(player_ids) < 2:
+        raise HTTPException(400, "Need at least 2 players to compare")
+
+    players_detail = []
+    for pid in player_ids:
+        result = await db.execute(select(Player).where(Player.id == pid))
+        player = result.scalar_one_or_none()
+        if not player:
+            raise HTTPException(404, f"Player {pid} not found")
+
+        stats_result = await db.execute(
+            select(PlayerStat)
+            .where(PlayerStat.player_id == pid)
+            .order_by(PlayerStat.game_date.desc())
+            .limit(20)
+        )
+        stats = stats_result.scalars().all()
+
+        totals_result = await db.execute(
+            select(
+                func.sum(PlayerStat.hits).label("hits"),
+                func.sum(PlayerStat.home_runs).label("home_runs"),
+                func.sum(PlayerStat.rbi).label("rbi"),
+                func.sum(PlayerStat.walks).label("walks"),
+                func.sum(PlayerStat.at_bats).label("at_bats"),
+                func.count(PlayerStat.id).label("games"),
+            )
+            .where(PlayerStat.player_id == pid)
+        )
+        totals = totals_result.one_or_none()
+
+        season_totals = None
+        if totals and totals.games:
+            ab = totals.at_bats or 1
+            season_totals = {
+                "games": totals.games,
+                "hits": totals.hits or 0,
+                "home_runs": totals.home_runs or 0,
+                "rbi": totals.rbi or 0,
+                "walks": totals.walks or 0,
+                "at_bats": totals.at_bats or 0,
+                "batting_avg": round((totals.hits or 0) / ab, 3),
+            }
+
+        players_detail.append(PlayerDetail(
+            player=_player_to_response(player),
+            recent_stats=[
+                PlayerStatsResponse(
+                    game_date=s.game_date,
+                    batting_avg=s.batting_avg, obp=s.obp, slg=s.slg,
+                    hits=s.hits, home_runs=s.home_runs,
+                    rbi=s.rbi, walks=s.walks,
+                )
+                for s in stats
+            ],
+            season_totals=season_totals,
+        ))
+
+    return PlayerCompareResponse(players=players_detail)
 
 
 @router.get("/{player_id}", response_model=PlayerDetail)

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveGames } from "@/hooks/useLiveGames";
 import { getDataStatus, getSchedulerStatus, getBestBets } from "@/lib/api";
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { data, isLoading, error } = useLiveGames();
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
 
@@ -116,7 +118,10 @@ export default function DashboardPage() {
                 <GameCard
                   key={game.game_id}
                   game={game}
-                  onClick={() => setSelectedGameId(game.game_id)}
+                  onClick={() => {
+                    setSelectedGameId(game.game_id);
+                    router.push(`/dashboard/game/${game.game_id}`);
+                  }}
                 />
               ))}
             </div>

@@ -8,13 +8,15 @@ None.
 
 ## Proposed Changes
 
-### Frontend - Design Overhaul (Beginner Friendly)
-- **Visual Style**: Switch to a cleaner, more professional color palette (modern slate/gray base instead of deep blue). Improve contrast and readability.
-- **Context Badges**: Add "Elite" (Gold), "Great" (Green), "Average" (Gray), "Poor" (Orange) pills next to advanced stats.
-- **Plain English Tooltips**: Replace math definitions with "Why it matters" explanations (e.g., "wRC+ measures total offense. 100 is average.").
-- **Percentile Bars**: Visualize stats as 0-99 ratings (like video games) for instant understanding.
-- **Trend Indicators**: Add simple ↑ ↓ arrows to show recent form (last 10 games vs season average).
-- **Luck Meter**: Visual comparison of actual vs expected stats (e.g., wOBA vs xwOBA) to show if a player is "Lucky" or "Unlucky".
+### Frontend - Design Overhaul & Integration
+- **Player Card (`frontend/components/cards/PlayerCard.tsx`)**:
+    - Add `ContextBadge` to show player tier (e.g., "Elite" badge next to name).
+    - Use `TrendIndicator` for recent form.
+- **Player Stats**:
+    - Update `StatGauge.tsx` to use the new `ContextBadge` logic and colors.
+    - Add `InfoTooltip` to stat labels in all dashboards.
+- **Integration**:
+    - Ensure `lib/stat-helpers.ts` is the single source of truth for thresholds and colors.
 
 ### Frontend - Features
 - **Game Prediction Page**: Create `frontend/app/dashboard/game/[gameId]/page.tsx` using the new design system.
@@ -23,12 +25,9 @@ None.
 - **Search Robustness**: Verify player search handles empty states gracefully and ensure the issue isn't due to missing data.
 
 ### Backend
-- **Get Game Endpoint**: Add `GET /v1/games/{game_id}` to `backend/api/v1/games.py` to fetch a specific game's details (using `statsapi.schedule`).
-- **Game Predictions Endpoint**: Create `GET /v1/games/{game_id}/predictions`. Logic:
-    1. Fetch game details to identify Home/Away teams.
-    2. Fetch active rosters for both teams (cached via `pipeline.fetch_all_players` or similar).
-    3. Query the `predictions` table for the latest prediction for each player on the roster.
-    4. Return a structured response with game info and two lists of player predictions.
+- **Get Game Endpoint**: Verify `GET /v1/games/{game_id}` (ALREADY IMPLEMENTED).
+- **Game Predictions Endpoint**: Verify `GET /v1/games/{game_id}/predictions` (ALREADY IMPLEMENTED).
+- **Action**: No new backend code needed for these features. Focus on testing they return correct data.
 
 ### Database / Data
 - **Verify Seeding**: Ensure the `players` table is populated. The search issue might be due to an empty database if `seed_database` wasn't run or failed.

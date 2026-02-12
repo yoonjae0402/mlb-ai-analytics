@@ -69,7 +69,9 @@ export const NAV_SECTIONS = [
     label: "Predictions",
     items: [
       { name: "Prediction Hub", path: "/dashboard/predictions", icon: "TrendingUp" },
+      { name: "Leaderboard", path: "/dashboard/leaderboard", icon: "Trophy" },
       { name: "Player Predict", path: "/predict", icon: "Search" },
+      { name: "Accuracy", path: "/dashboard/accuracy", icon: "Target" },
     ],
   },
   {

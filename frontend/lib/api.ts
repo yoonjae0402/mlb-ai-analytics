@@ -72,6 +72,17 @@ export const getDailyPredictions = (sortBy = "predicted_hr", limit = 50) =>
 export const getBestBets = (limit = 5) =>
   fetchAPI<PredictionsHubResult>(`/v1/predictions/best-bets?limit=${limit}`);
 
+// Leaderboard
+export const getLeaderboard = (limit = 25) =>
+  fetchAPI<LeaderboardEntry[]>(`/v1/leaderboard?limit=${limit}`);
+
+// Pitchers
+export const searchPitchers = (q = "", limit = 20) =>
+  fetchAPI<Player[]>(`/v1/pitchers/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+
+export const getPitcherStats = (pitcherId: number) =>
+  fetchAPI<PitcherStatsResult>(`/v1/pitchers/${pitcherId}/stats`);
+
 // Attention
 export const getAttentionWeights = (sampleIdx = 0) =>
   fetchAPI<AttentionResult>("/v1/attention/weights", {
@@ -476,6 +487,42 @@ export interface CalibrationPoint {
   predicted_accuracy: number;
   actual_accuracy?: number;
   n_predictions: number;
+}
+
+// Leaderboard Types
+export interface LeaderboardEntry {
+  rank: number;
+  player_id: number;
+  player_name: string;
+  team?: string;
+  headshot_url?: string;
+  predicted_hits: number;
+  predicted_hr: number;
+  predicted_rbi: number;
+  predicted_walks: number;
+  confidence?: number;
+  composite_score: number;
+}
+
+// Pitcher Types
+export interface PitcherStatsResult {
+  id: number;
+  mlb_id: number;
+  name: string;
+  team?: string;
+  throws?: string;
+  headshot_url?: string;
+  stats: {
+    total_games: number;
+    total_innings: number;
+    total_strikeouts: number;
+    total_walks: number;
+    total_earned_runs: number;
+    era: number | null;
+    whip: number | null;
+    k_per_9: number | null;
+    bb_per_9: number | null;
+  };
 }
 
 // Player Compare

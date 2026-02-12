@@ -4,7 +4,7 @@ import { getDataStatus, getHealth } from "@/lib/api";
 import MetricCard from "@/components/cards/MetricCard";
 import {
   BarChart3, Eye, Layers, Activity, Search, FileCode, Calendar,
-  TrendingUp, Users,
+  TrendingUp, Users, Trophy, Target,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -64,6 +64,20 @@ const features = [
     href: "/ensemble",
     icon: Layers,
     color: "text-green-400",
+  },
+  {
+    title: "Leaderboard",
+    desc: "Top predicted performers ranked by composite score",
+    href: "/dashboard/leaderboard",
+    icon: Trophy,
+    color: "text-amber-400",
+  },
+  {
+    title: "Prediction Accuracy",
+    desc: "Track how predictions compare to actual outcomes",
+    href: "/dashboard/accuracy",
+    icon: Target,
+    color: "text-emerald-400",
   },
   {
     title: "Architecture",

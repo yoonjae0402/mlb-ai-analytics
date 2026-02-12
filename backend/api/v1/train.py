@@ -1,10 +1,9 @@
 """Model training endpoints."""
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks
 
-from backend.api.dependencies import get_model_service, get_sync_db
+from backend.api.dependencies import get_model_service
 from backend.api.v1.schemas import TrainRequest, TrainStatus, TrainCurves
-from backend.core.model_service import ModelService
 from backend.db.session import SyncSessionLocal
 from backend.db.models import ModelVersion
 

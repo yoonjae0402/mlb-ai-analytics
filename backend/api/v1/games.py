@@ -3,7 +3,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, or_
 
 from backend.api.v1.schemas import (
     LiveGamesResponse, GameResponse, GameDetailResponse,
@@ -116,8 +116,7 @@ async def get_game_predictions(
         """Look up players in our DB for this team and get their latest predictions."""
         # Resolve team abbreviation from DB if possible
         from backend.db.models import Team
-        from sqlalchemy import or_
-        
+
         search_term = team_name_fallback
         
         if mlb_team_id:

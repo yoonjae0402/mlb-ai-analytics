@@ -25,8 +25,9 @@ services:
       - "8000:8000"
     environment:
       MLB_DATABASE_URL: "postgresql+asyncpg://mlb:mlb@postgres:5432/mlb_analytics"
-      MLB_DATABASE_URL_SYNC: "postgresql://mlb:mlb@postgres:5432/mlb_analytics"
+      MLB_DATABASE_URL_SYNC: "postgresql+psycopg2://mlb:mlb@postgres:5432/mlb_analytics"
       MLB_CORS_ORIGINS: '["http://localhost:3000"]'
+      MLB_AUTO_SEED: "true"
     env_file:
       - .env
     depends_on:

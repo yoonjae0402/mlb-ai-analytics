@@ -1,11 +1,10 @@
 """Player prediction endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
-from backend.api.dependencies import get_model_service, get_sync_db
+from backend.api.dependencies import get_model_service
 from backend.api.v1.schemas import PredictRequest, PredictionResponse
-from backend.core.model_service import ModelService
-from backend.db.models import Player, Prediction
+from backend.db.models import Prediction
 
 router = APIRouter(prefix="/predict", tags=["predictions"])
 

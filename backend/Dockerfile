@@ -14,7 +14,10 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 # Application code
 COPY src/ src/
 COPY backend/ backend/
-# COPY config/ config/
+
+# Entrypoint script (auto-seeds DB in Docker)
+COPY backend/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 # Non-root user
 RUN useradd -m appuser && chown -R appuser:appuser /app
@@ -25,4 +28,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/app/entrypoint.sh"]

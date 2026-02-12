@@ -1,48 +1,88 @@
-    # Goal Description
-The goal is to ensure the MLB Analytics website shows player stats and allows searching even when no games are scheduled for the current day. This involves fixing a likely issue where the search component or data retrieval assumes active games. Additionally, the schedule component will be updated to be interactive, allowing users to click on a game to view detailed predictions for the players involved.
+# MLB AI Analytics — Implementation Plan
 
-Furthermore, a significant design overhaul will be applied to make the site more "beginner friendly" (easier to read stats, professional color scheme, clear explanations), taking inspiration from a simplified FanGraphs aesthetic.
+## Current Focus: Docker Database Auto-Seeding + Baseline Predictions
 
-## User Review Required
-None.
+### Problem
+When running with Docker Compose, the backend connects to a **fresh PostgreSQL container with no data**. Tables are created on startup via `init_db()`, but no players, stats, or predictions exist. The `seed_database` script was only run locally against SQLite.
+
+### Root Cause
+- `docker-compose.yml` starts a fresh PostgreSQL with empty tables
+- `backend/main.py` creates tables but has no data seeding step
+- Baseline prediction generation finds 0 players → generates 0 predictions
+
+---
 
 ## Proposed Changes
 
-### Frontend - Design Overhaul & Integration
-- **Player Card (`frontend/components/cards/PlayerCard.tsx`)**:
-    - Add `ContextBadge` to show player tier (e.g., "Elite" badge next to name).
-    - Use `TrendIndicator` for recent form.
-- **Player Stats**:
-    - Update `StatGauge.tsx` to use the new `ContextBadge` logic and colors.
-    - Add `InfoTooltip` to stat labels in all dashboards.
-- **Integration**:
-    - Ensure `lib/stat-helpers.ts` is the single source of truth for thresholds and colors.
+### 1. Docker Entrypoint Script
+**[NEW] `backend/entrypoint.sh`**
+- Auto-seeds 2025 MLB + AAA data on first startup
+- Generates baseline predictions (weighted historical averages, no ML model needed)
+- Only runs when `MLB_AUTO_SEED=true` (Docker only)
+- Starts `uvicorn` after seeding completes
 
-### Frontend - Features
-- **Game Prediction Page**: Create `frontend/app/dashboard/game/[gameId]/page.tsx` using the new design system.
-- **Update Schedule**: Add interaction to the schedule component to link to the new game prediction page.
-- **Comparison Tool**: Create `frontend/app/dashboard/compare/page.tsx` for side-by-side player analysis. Use "Context Badges" to make advantages obvious (e.g., highlighting the text green if one player is "Elite" and the other "Average").
-- **Search Robustness**: Verify player search handles empty states gracefully and ensure the issue isn't due to missing data.
+### 2. Backend Dockerfile
+**[MODIFY] `backend/Dockerfile`**
+- Copy `entrypoint.sh` into image
+- Set as `ENTRYPOINT`
 
-### Backend
-- **Get Game Endpoint**: Verify `GET /v1/games/{game_id}` (ALREADY IMPLEMENTED).
-- **Game Predictions Endpoint**: Verify `GET /v1/games/{game_id}/predictions` (ALREADY IMPLEMENTED).
-- **Action**: No new backend code needed for these features. Focus on testing they return correct data.
+### 3. Docker Compose
+**[MODIFY] `docker-compose.yml`**
+- Add `MLB_AUTO_SEED: "true"` to backend environment
+
+### 4. Dependencies
+**[MODIFY] `backend/requirements.txt`**
+- Add `aiosqlite>=0.20.0` for local SQLite dev support
+
+---
+
+## Baseline Prediction System (Already Implemented)
+- **`backend/services/baseline_predictor.py`**: Generates predictions from weighted historical averages
+- **No ML model training required** — uses last 30 games with recency weighting
+- **No user input required** — auto-generates on startup + on-the-fly per request
+- **`backend/api/v1/games.py`**: Falls back to baseline predictions when no trained model exists
+
+---
+
+## Data Pipeline Config
+- **Seasons**: `[2025, 2026]` (2025 completed, 2026 current)
+- **Levels**: MLB (`sportId=1`) + Triple-A (`sportId=11`) only
+- **Players**: ~1,600 (1,470 MLB + 130 AAA)
+- **Stats**: ~76,000 game-level entries
+- **Predictions**: ~727 baseline predictions (players with ≥3 games)
+
+---
+
+## Previously Completed
+
+### Frontend - Design & Features
+- [x] Game Prediction Page (`frontend/app/dashboard/game/[gameId]/page.tsx`)
+- [x] Interactive Schedule linking to game predictions
+- [x] Player Comparison Tool (`frontend/app/dashboard/compare/page.tsx`)
+- [x] Context Badges, TrendIndicator, InfoTooltip components
+- [x] Search robustness for empty states
+
+### Backend - APIs
+- [x] `GET /v1/games/{game_id}` — game details
+- [x] `GET /v1/games/{game_id}/predictions` — player predictions with auto-generation
+- [x] `POST /v1/baseline/generate` — bulk baseline prediction generation
+- [x] Team matching fix (abbreviation + ID-based lookup)
 
 ### Database / Data
-- **Verify Seeding**: Ensure the `players` table is populated. The search issue might be due to an empty database if `seed_database` wasn't run or failed.
+- [x] 2025 season data seeded (MLB + AAA)
+- [x] Baseline predictions generated for all eligible players
+
+---
 
 ## Verification Plan
-### Manual Verification
-- **Visual Check**: Ensure new colors are professional and text is high-contrast.
-- **Context Check**: Verify badges and tooltips appear correctly and match the data.
-- **No Games Scenario**:
-    - Verify player search works even if the schedule API returns nothing for today.
-    - If the `games` table is empty in the DB, ensure search still queries the `players` table correctly.
-- **Schedule Click**:
-    - Click a game in the schedule view.
-    - Verify navigation to `/dashboard/game/[gameId]`.
-    - Verify the new page shows predictions for players on both teams.
-- **Comparison Check**:
-    - Select two players in the Comparison Tool.
-    - Verify stats are shown side-by-side with correct "Elite/Avg" context badges.
+
+### Docker
+- Run `docker compose up --build`
+- Check backend logs for seeding progress
+- Open `http://localhost:3000` → verify players appear
+- Click a game in schedule → verify predictions show up
+
+### Local Dev
+- `uvicorn backend.main:app --reload` with SQLite
+- Verify auto-prediction on startup
+- Test game prediction page

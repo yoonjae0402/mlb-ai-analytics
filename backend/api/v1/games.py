@@ -8,6 +8,7 @@ from sqlalchemy import select, desc, or_
 from backend.api.v1.schemas import (
     LiveGamesResponse, GameResponse, GameDetailResponse,
     GamePlayerPrediction, GamePredictionsResponse,
+    WinProbabilityResponse, TeamProjectionResponse,
 )
 from backend.db.session import get_db
 from backend.db.models import Player, Prediction
@@ -228,3 +229,67 @@ async def get_game_predictions(
         home_players=home_players,
         away_players=away_players,
     )
+
+
+@router.get("/{game_id}/win-probability", response_model=WinProbabilityResponse)
+async def get_win_probability(game_id: int):
+    """Compute win probability for a game based on player predictions.
+
+    Aggregates individual player predictions into projected team runs,
+    then applies Pythagorean expectation to derive win probability.
+    """
+    try:
+        import statsapi
+        schedule = statsapi.schedule(game_id=game_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch game {game_id}: {e}")
+        raise HTTPException(status_code=502, detail=f"MLB API error: {e}")
+
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    g = schedule[0]
+
+    from backend.db.session import SyncSessionLocal
+    from backend.services.game_predictor import compute_win_probability
+
+    session = SyncSessionLocal()
+    try:
+        result = compute_win_probability(
+            session,
+            home_team_id=g.get("home_id", 0),
+            away_team_id=g.get("away_id", 0),
+            home_team_name=g.get("home_name", ""),
+            away_team_name=g.get("away_name", ""),
+        )
+
+        return WinProbabilityResponse(
+            home_win_pct=result.home_win_pct,
+            away_win_pct=result.away_win_pct,
+            home=TeamProjectionResponse(
+                team_name=result.home.team_name,
+                team_abbreviation=result.home.team_abbreviation,
+                projected_runs=result.home.projected_runs,
+                projected_hits=result.home.projected_hits,
+                projected_hr=result.home.projected_hr,
+                projected_rbi=result.home.projected_rbi,
+                projected_walks=result.home.projected_walks,
+                n_players_with_predictions=result.home.n_players_with_predictions,
+                n_total_players=result.home.n_total_players,
+            ),
+            away=TeamProjectionResponse(
+                team_name=result.away.team_name,
+                team_abbreviation=result.away.team_abbreviation,
+                projected_runs=result.away.projected_runs,
+                projected_hits=result.away.projected_hits,
+                projected_hr=result.away.projected_hr,
+                projected_rbi=result.away.projected_rbi,
+                projected_walks=result.away.projected_walks,
+                n_players_with_predictions=result.away.n_players_with_predictions,
+                n_total_players=result.away.n_total_players,
+            ),
+            confidence=result.confidence,
+            method=result.method,
+        )
+    finally:
+        session.close()

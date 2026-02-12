@@ -1,14 +1,13 @@
 "use client";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { getGamePredictions } from "@/lib/api";
-import type { GamePlayerPrediction } from "@/lib/api";
+import { getGamePredictions, getWinProbability } from "@/lib/api";
+import type { GamePlayerPrediction, WinProbabilityResult } from "@/lib/api";
 import PlayerHeadshot from "@/components/visuals/PlayerHeadshot";
-import ContextBadge from "@/components/ui/ContextBadge";
 import PercentileBar from "@/components/ui/PercentileBar";
 import StatTooltip from "@/components/ui/StatTooltip";
 import {
-  Activity, MapPin, Clock, Users, AlertCircle, ChevronLeft,
+  Activity, MapPin, Clock, Users, AlertCircle, ChevronLeft, TrendingUp, BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -19,6 +18,12 @@ export default function GamePredictionPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["gamePredictions", gameId],
     queryFn: () => getGamePredictions(gameId),
+    enabled: !!gameId,
+  });
+
+  const { data: winProb } = useQuery({
+    queryKey: ["winProbability", gameId],
+    queryFn: () => getWinProbability(gameId),
     enabled: !!gameId,
   });
 
@@ -112,6 +117,9 @@ export default function GamePredictionPage() {
         </div>
       </div>
 
+      {/* Win Probability Card */}
+      {winProb && <WinProbabilityCard data={winProb} />}
+
       {/* Player Predictions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Away Team */}
@@ -138,6 +146,104 @@ export default function GamePredictionPage() {
           <span><strong className="text-mlb-text">RBI</strong> = Predicted Runs Batted In</span>
           <span><strong className="text-mlb-text">BB</strong> = Predicted Walks</span>
           <span>Badges show how the prediction compares to league averages</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WinProbabilityCard({ data }: { data: WinProbabilityResult }) {
+  const homeWinPct = Math.round(data.home_win_pct * 100);
+  const awayWinPct = Math.round(data.away_win_pct * 100);
+  const favored = homeWinPct > awayWinPct ? "home" : homeWinPct < awayWinPct ? "away" : "even";
+
+  return (
+    <div className="bg-mlb-card border border-mlb-border rounded-xl p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <TrendingUp className="w-4 h-4 text-mlb-blue" />
+        <h3 className="text-sm font-semibold text-mlb-text">Game Outlook</h3>
+        <span className="text-[10px] text-mlb-muted ml-auto">
+          Confidence: {Math.round(data.confidence * 100)}%
+        </span>
+      </div>
+
+      {/* Win Probability Bar */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1">
+          <span className={`text-xs font-bold ${favored === "away" ? "text-mlb-blue" : "text-mlb-muted"}`}>
+            {data.away.team_abbreviation} {awayWinPct}%
+          </span>
+          <span className="text-[10px] text-mlb-muted">Win Probability</span>
+          <span className={`text-xs font-bold ${favored === "home" ? "text-mlb-red" : "text-mlb-muted"}`}>
+            {homeWinPct}% {data.home.team_abbreviation}
+          </span>
+        </div>
+        <div className="h-3 rounded-full overflow-hidden flex bg-mlb-surface">
+          <div
+            className="bg-mlb-blue transition-all duration-500"
+            style={{ width: `${awayWinPct}%` }}
+          />
+          <div
+            className="bg-mlb-red transition-all duration-500"
+            style={{ width: `${homeWinPct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Projected Runs */}
+      <div className="grid grid-cols-2 gap-4">
+        <TeamProjectionBox
+          team={data.away}
+          color="blue"
+        />
+        <TeamProjectionBox
+          team={data.home}
+          color="red"
+        />
+      </div>
+
+      <p className="text-[10px] text-mlb-muted mt-3 text-center">
+        Based on Pythagorean expectation using aggregated player predictions
+      </p>
+    </div>
+  );
+}
+
+function TeamProjectionBox({
+  team,
+  color,
+}: {
+  team: WinProbabilityResult["home"];
+  color: "blue" | "red";
+}) {
+  const borderColor = color === "blue" ? "border-mlb-blue/30" : "border-mlb-red/30";
+  const accentColor = color === "blue" ? "text-mlb-blue" : "text-mlb-red";
+
+  return (
+    <div className={`border ${borderColor} rounded-lg p-3`}>
+      <div className="flex items-center gap-2 mb-2">
+        <BarChart3 className={`w-3.5 h-3.5 ${accentColor}`} />
+        <span className="text-xs font-semibold text-mlb-text">{team.team_abbreviation}</span>
+      </div>
+      <div className="space-y-1">
+        <div className="flex justify-between text-[10px]">
+          <span className="text-mlb-muted">Projected Runs</span>
+          <span className={`font-bold ${accentColor}`}>{team.projected_runs.toFixed(1)}</span>
+        </div>
+        <div className="flex justify-between text-[10px]">
+          <span className="text-mlb-muted">Proj. Hits</span>
+          <span className="text-mlb-text">{team.projected_hits.toFixed(1)}</span>
+        </div>
+        <div className="flex justify-between text-[10px]">
+          <span className="text-mlb-muted">Proj. HR</span>
+          <span className="text-mlb-text">{team.projected_hr.toFixed(1)}</span>
+        </div>
+        <div className="flex justify-between text-[10px]">
+          <span className="text-mlb-muted">Proj. RBI</span>
+          <span className="text-mlb-text">{team.projected_rbi.toFixed(1)}</span>
+        </div>
+        <div className="text-[10px] text-mlb-muted mt-1 pt-1 border-t border-mlb-border/50">
+          {team.n_players_with_predictions} of {team.n_total_players} players predicted
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from backend.api.v1 import (
     train, predict, players, attention, ensemble, games,
     evaluation, data, tuning, schedule, predictions_hub,
-    teams, scheduler_routes, baseline, pitchers,
+    teams, scheduler_routes, baseline, pitchers, accuracy,
 )
 
 router = APIRouter(prefix="/v1")
@@ -25,3 +25,4 @@ router.include_router(teams.router)
 router.include_router(scheduler_routes.router)
 router.include_router(baseline.router)
 router.include_router(pitchers.router)
+router.include_router(accuracy.router)

@@ -406,6 +406,78 @@ export interface GamePredictionsResult {
   away_players: GamePlayerPrediction[];
 }
 
+// Win Probability
+export const getWinProbability = (gameId: number | string) =>
+  fetchAPI<WinProbabilityResult>(`/v1/games/${gameId}/win-probability`);
+
+// Accuracy
+export const getAccuracySummary = () =>
+  fetchAPI<AccuracySummary>("/v1/accuracy/summary");
+
+export const getAccuracyByPlayer = (playerId: number) =>
+  fetchAPI<PlayerAccuracy>(`/v1/accuracy/by-player/${playerId}`);
+
+export const getCalibrationData = () =>
+  fetchAPI<CalibrationPoint[]>("/v1/accuracy/calibration");
+
+export const triggerBackfill = (lookbackDays = 7) =>
+  fetchAPI<{ status: string }>(`/v1/accuracy/backfill?lookback_days=${lookbackDays}`, {
+    method: "POST",
+  });
+
+// Win Probability Types
+export interface TeamProjection {
+  team_name: string;
+  team_abbreviation: string;
+  projected_runs: number;
+  projected_hits: number;
+  projected_hr: number;
+  projected_rbi: number;
+  projected_walks: number;
+  n_players_with_predictions: number;
+  n_total_players: number;
+}
+
+export interface WinProbabilityResult {
+  home_win_pct: number;
+  away_win_pct: number;
+  home: TeamProjection;
+  away: TeamProjection;
+  confidence: number;
+  method: string;
+}
+
+// Accuracy Types
+export interface AccuracySummary {
+  total_evaluated: number;
+  avg_mse?: number;
+  avg_mae?: number;
+  hit_rate?: number;
+  per_stat: Record<string, Record<string, number>>;
+}
+
+export interface PlayerAccuracyPrediction {
+  prediction_id: number;
+  date?: string;
+  predicted: Record<string, number>;
+  actual: Record<string, number>;
+  mse?: number;
+}
+
+export interface PlayerAccuracy {
+  player_id: number;
+  total_evaluated: number;
+  avg_mse?: number;
+  predictions: PlayerAccuracyPrediction[];
+}
+
+export interface CalibrationPoint {
+  confidence_bin: number;
+  predicted_accuracy: number;
+  actual_accuracy?: number;
+  n_predictions: number;
+}
+
 // Player Compare
 export interface PlayerCompareResult {
   players: PlayerDetail[];

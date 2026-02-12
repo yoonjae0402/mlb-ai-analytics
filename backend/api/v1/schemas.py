@@ -304,6 +304,61 @@ class GamePredictionsResponse(BaseModel):
     away_players: list[GamePlayerPrediction]
 
 
+# --- Win Probability ---
+
+class TeamProjectionResponse(BaseModel):
+    team_name: str
+    team_abbreviation: str
+    projected_runs: float
+    projected_hits: float
+    projected_hr: float
+    projected_rbi: float
+    projected_walks: float
+    n_players_with_predictions: int
+    n_total_players: int
+
+
+class WinProbabilityResponse(BaseModel):
+    home_win_pct: float
+    away_win_pct: float
+    home: TeamProjectionResponse
+    away: TeamProjectionResponse
+    confidence: float
+    method: str
+
+
+# --- Accuracy ---
+
+class AccuracySummaryResponse(BaseModel):
+    total_evaluated: int
+    avg_mse: Optional[float] = None
+    avg_mae: Optional[float] = None
+    hit_rate: Optional[float] = None
+    per_stat: dict = {}
+
+
+class PlayerAccuracyPrediction(BaseModel):
+    prediction_id: int
+    date: Optional[str] = None
+    predicted: dict
+    actual: dict
+    mse: Optional[float] = None
+
+
+class PlayerAccuracyResponse(BaseModel):
+    player_id: int
+    total_evaluated: int
+    avg_mse: Optional[float] = None
+    predictions: list[PlayerAccuracyPrediction] = []
+
+
+class CalibrationPoint(BaseModel):
+    confidence_bin: float
+    predicted_accuracy: float
+    actual_accuracy: Optional[float] = None
+    n_predictions: int
+
+
 # --- Player Compare ---
 
 class PlayerCompareResponse(BaseModel):

@@ -245,6 +245,35 @@ class MLBDataPipeline:
             self.cache.set(cache_key, df)
         return unique_players
 
+    def fetch_pitcher_game_logs(self, player_id: int, season: int) -> list[dict]:
+        """Fetch game-by-game pitching logs from MLB Stats API."""
+        cache_key = f"pitching_logs_{player_id}_{season}"
+        cached = self.cache.get(cache_key, "game_logs")
+        if cached is not None:
+            return cached.to_dict("records")
+
+        logger.info(f"Fetching pitching logs for player {player_id}, season {season}")
+        params = {
+            "personIds": player_id,
+            "hydrate": f"stats(group=[pitching],type=[gameLog],season={season})",
+        }
+        data = _retry(lambda: statsapi.get("people", params))
+
+        logs = []
+        if "people" in data and len(data["people"]) > 0:
+            person_data = data["people"][0]
+            if "stats" in person_data:
+                for stat_group in person_data["stats"]:
+                    if "splits" in stat_group:
+                        for split in stat_group["splits"]:
+                            split["_is_pitching"] = True
+                        logs.extend(stat_group["splits"])
+
+        if logs:
+            df = pd.DataFrame(logs)
+            self.cache.set(cache_key, df)
+        return logs
+
     def fetch_milb_game_logs(self, player_id: int, season: int) -> list[dict]:
         """Fetch minor league game logs for a player."""
         cache_key = f"milb_game_logs_{player_id}_{season}"
@@ -336,17 +365,16 @@ class MLBDataPipeline:
                             player.headshot_url = get_headshot_url(mlb_id)
                         player.current_level = p_dict.get("current_level", "MiLB")
 
-                    # Decide whether to fetch logs based on level?
-                    # For now, try fetching logs for everyone.
-                    # fetch_player_game_logs handles MLB.
-                    # fetch_milb_game_logs handles MiLB.
-                    
-                    # Fetch MLB logs
-                    logs = self.fetch_player_game_logs(mlb_id, season)
-                    
-                    # Also fetch MiLB logs just in case (some players play both)
-                    milb_logs = self.fetch_milb_game_logs(mlb_id, season)
-                    logs.extend(milb_logs)
+                    is_pitcher = p_dict.get("position", "") == "P"
+
+                    if is_pitcher:
+                        # Fetch pitching game logs for pitchers
+                        logs = self.fetch_pitcher_game_logs(mlb_id, season)
+                    else:
+                        # Fetch hitting game logs for batters
+                        logs = self.fetch_player_game_logs(mlb_id, season)
+                        milb_logs = self.fetch_milb_game_logs(mlb_id, season)
+                        logs.extend(milb_logs)
 
                     for log in logs:
                         stat_data = log.get("stat", {})
@@ -366,29 +394,49 @@ class MLBDataPipeline:
                         )
                         if existing:
                             continue
-                        
-                        # Check level for this specific game log if available
-                        game_level = log.get("_level", "MLB") # Set by fetch_milb_game_logs
 
-                        ps = PlayerStat(
-                            player_id=player.id,
-                            game_date=gd,
-                            level=game_level,
-                            batting_avg=_safe_float(stat_data.get("avg")),
-                            obp=_safe_float(stat_data.get("obp")),
-                            slg=_safe_float(stat_data.get("slg")),
-                            woba=None,  # not in game logs; computed in feature builder
-                            hits=_safe_int(stat_data.get("hits")),
-                            home_runs=_safe_int(stat_data.get("homeRuns")),
-                            rbi=_safe_int(stat_data.get("rbi")),
-                            walks=_safe_int(stat_data.get("baseOnBalls")),
-                            at_bats=_safe_int(stat_data.get("atBats")),
-                            plate_appearances=_safe_int(stat_data.get("plateAppearances")),
-                            doubles=_safe_int(stat_data.get("doubles")),
-                            triples=_safe_int(stat_data.get("triples")),
-                            strikeouts=_safe_int(stat_data.get("strikeOuts")),
-                            stolen_bases=_safe_int(stat_data.get("stolenBases")),
-                        )
+                        game_level = log.get("_level", "MLB")
+
+                        if log.get("_is_pitching"):
+                            # Pitching game log — store pitcher-specific stats
+                            ip_str = stat_data.get("inningsPitched", "0")
+                            ip = _parse_innings_pitched(ip_str)
+
+                            ps = PlayerStat(
+                                player_id=player.id,
+                                game_date=gd,
+                                level=game_level,
+                                innings_pitched=ip,
+                                earned_runs=_safe_int(stat_data.get("earnedRuns")),
+                                strikeouts=_safe_int(stat_data.get("strikeOuts")),
+                                walks=_safe_int(stat_data.get("baseOnBalls")),
+                                hits=_safe_int(stat_data.get("hits")),
+                                home_runs=_safe_int(stat_data.get("homeRuns")),
+                                # Compute per-game rates for pitcher lookup
+                                k_rate=_safe_float(stat_data.get("strikeOuts")) / max(ip, 1.0) * 9 if ip else None,
+                                bb_rate=_safe_float(stat_data.get("baseOnBalls")) / max(ip, 1.0) * 9 if ip else None,
+                            )
+                        else:
+                            # Hitting game log
+                            ps = PlayerStat(
+                                player_id=player.id,
+                                game_date=gd,
+                                level=game_level,
+                                batting_avg=_safe_float(stat_data.get("avg")),
+                                obp=_safe_float(stat_data.get("obp")),
+                                slg=_safe_float(stat_data.get("slg")),
+                                woba=None,
+                                hits=_safe_int(stat_data.get("hits")),
+                                home_runs=_safe_int(stat_data.get("homeRuns")),
+                                rbi=_safe_int(stat_data.get("rbi")),
+                                walks=_safe_int(stat_data.get("baseOnBalls")),
+                                at_bats=_safe_int(stat_data.get("atBats")),
+                                plate_appearances=_safe_int(stat_data.get("plateAppearances")),
+                                doubles=_safe_int(stat_data.get("doubles")),
+                                triples=_safe_int(stat_data.get("triples")),
+                                strikeouts=_safe_int(stat_data.get("strikeOuts")),
+                                stolen_bases=_safe_int(stat_data.get("stolenBases")),
+                            )
                         session.add(ps)
                     count += 1
                     if count % 25 == 0:
@@ -464,3 +512,17 @@ def _safe_int(val) -> Optional[int]:
         return int(val)
     except (ValueError, TypeError):
         return None
+
+
+def _parse_innings_pitched(val) -> float:
+    """Parse MLB innings pitched string (e.g., '6.1' means 6 and 1/3 innings)."""
+    if val is None:
+        return 0.0
+    try:
+        ip = float(val)
+        whole = int(ip)
+        # MLB format: .1 = 1 out (1/3 IP), .2 = 2 outs (2/3 IP)
+        outs = round((ip - whole) * 10)
+        return whole + outs / 3.0
+    except (ValueError, TypeError):
+        return 0.0

@@ -99,6 +99,10 @@ class PlayerStat(Base):
     strikeouts = Column(SmallInteger, default=0)
     stolen_bases = Column(SmallInteger, default=0)
 
+    # Pitching stats (only populated for pitchers)
+    innings_pitched = Column(Float, nullable=True)
+    earned_runs = Column(SmallInteger, nullable=True)
+
     player = relationship("Player", back_populates="stats")
 
 

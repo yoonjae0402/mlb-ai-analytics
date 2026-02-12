@@ -41,8 +41,59 @@ async def model_evaluation():
 
 
 @router.get("/leaderboard", response_model=list[dict])
-async def leaderboard():
-    """Top predicted performers."""
-    svc = get_model_service()
-    # Placeholder — populated once predictions exist
-    return []
+async def leaderboard(limit: int = 25):
+    """Top predicted performers based on latest predictions."""
+    from backend.db.session import SyncSessionLocal
+    from backend.db.models import Prediction, Player
+    from sqlalchemy import desc
+
+    session = SyncSessionLocal()
+    try:
+        # Get latest prediction per player, ranked by predicted hits + HR + RBI
+        from sqlalchemy import func
+        subq = (
+            session.query(
+                Prediction.player_id,
+                func.max(Prediction.created_at).label("latest"),
+            )
+            .group_by(Prediction.player_id)
+            .subquery()
+        )
+        preds = (
+            session.query(Prediction, Player)
+            .join(Player, Prediction.player_id == Player.id)
+            .join(
+                subq,
+                (Prediction.player_id == subq.c.player_id)
+                & (Prediction.created_at == subq.c.latest),
+            )
+            .order_by(
+                desc(Prediction.predicted_hits + Prediction.predicted_hr + Prediction.predicted_rbi)
+            )
+            .limit(limit)
+            .all()
+        )
+
+        return [
+            {
+                "rank": i + 1,
+                "player_id": pred.player_id,
+                "player_name": player.name,
+                "team": player.team,
+                "headshot_url": player.headshot_url,
+                "predicted_hits": pred.predicted_hits,
+                "predicted_hr": pred.predicted_hr,
+                "predicted_rbi": pred.predicted_rbi,
+                "predicted_walks": pred.predicted_walks,
+                "confidence": pred.confidence,
+                "composite_score": round(
+                    (pred.predicted_hits or 0)
+                    + (pred.predicted_hr or 0) * 4
+                    + (pred.predicted_rbi or 0),
+                    3,
+                ),
+            }
+            for i, (pred, player) in enumerate(preds)
+        ]
+    finally:
+        session.close()

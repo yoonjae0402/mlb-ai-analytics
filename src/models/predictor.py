@@ -39,7 +39,7 @@ class PlayerLSTM(nn.Module):
 
     def __init__(
         self,
-        input_size: int = 15,
+        input_size: int = 22,
         hidden_size: int = 128,
         num_layers: int = 2,
         output_size: int = 4,

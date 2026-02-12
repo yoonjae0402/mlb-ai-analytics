@@ -17,7 +17,7 @@ from src.models.model_registry import (
 )
 from src.data.feature_builder import (
     build_sequences_from_db, build_player_sequence, temporal_split,
-    FEATURE_NAMES, TARGET_NAMES
+    FEATURE_NAMES, TARGET_NAMES, NUM_FEATURES
 )
 
 logger = logging.getLogger(__name__)

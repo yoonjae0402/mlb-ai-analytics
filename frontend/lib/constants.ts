@@ -55,6 +55,10 @@ export const FEATURE_DISPLAY_NAMES: Record<string, string> = {
   opp_handedness_adv: "Matchup Adv",
   iso: "ISO",
   hot_streak: "Hot Streak",
+  babip: "BABIP",
+  cold_streak: "Cold Streak",
+  is_home: "Home/Away",
+  opp_quality: "Opp Win %",
 };
 
 export const TARGET_DISPLAY_NAMES: Record<string, string> = {

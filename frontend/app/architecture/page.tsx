@@ -1,5 +1,5 @@
 "use client";
-import { Database, Server, Monitor, Brain, Zap, GitBranch, FileCode } from "lucide-react";
+import { Database, Server, Monitor, Brain, Zap, FileCode } from "lucide-react";
 import PageIntro from "@/components/ui/PageIntro";
 
 const techStack = [
@@ -28,8 +28,9 @@ const models = [
       "8-head self-attention mechanism",
       "LayerNorm + GELU activation + Dropout",
       "Xavier/Glorot weight initialization",
-      "Input: (batch, 10, 22) → Output: (batch, 4)",
-      "22 features: 15 batter + 5 pitcher matchup + 2 derived (ISO, hot streak)",
+      "Input: (batch, 10, 26) → Output: (batch, 4)",
+      "26 features: 15 batter + 5 pitcher matchup + 6 derived/context",
+      "Monte Carlo Dropout for uncertainty estimation (90% CI)",
     ],
   },
   {
@@ -37,7 +38,7 @@ const models = [
     desc: "Gradient-boosted trees with sequence flattening via summary statistics.",
     details: [
       "Per-feature: mean, std, last value, linear trend slope",
-      "Flattens (n, 10, 22) → (n, 88)",
+      "Flattens (n, 10, 26) → (n, 104)",
       "Separate XGBRegressor per target",
       "Default: 200 estimators, max_depth=6",
     ],

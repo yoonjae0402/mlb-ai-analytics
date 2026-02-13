@@ -110,23 +110,25 @@ curl "localhost:8000/v1/players/search?q=judge"  # Aaron Judge
 
 ### Models
 
-- **PlayerLSTM**: 2-layer bidirectional LSTM with 8-head self-attention, LayerNorm, GELU — Input: (batch, 10, 22) -> Output: (batch, 4)
-- **XGBoostPredictor**: Gradient-boosted trees with sequence flattening (mean/std/last/trend per feature) — (n, 10, 22) -> (n, 88)
+- **PlayerLSTM**: 2-layer bidirectional LSTM with 8-head self-attention, LayerNorm, GELU — Input: (batch, 10, 26) -> Output: (batch, 4)
+- **XGBoostPredictor**: Gradient-boosted trees with sequence flattening (mean/std/last/trend per feature) — (n, 10, 26) -> (n, 104)
 - **EnsemblePredictor**: Weighted average or Ridge stacking meta-learner
+- **Monte Carlo Dropout**: 30 forward passes with dropout enabled for uncertainty estimation (90% CI)
 - **Optuna HPT**: Bayesian hyperparameter optimization for both models
 
-### 22-Feature Pipeline
+### 26-Feature Pipeline
 
-| Category                | Features                                                                                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Batter Core (15)**    | batting avg, OBP, SLG, wOBA, barrel rate, exit velo, launch angle, sprint speed, K%, BB%, hard hit %, pull %, park factor, platoon advantage, days rest |
-| **Pitcher Matchup (5)** | opposing ERA, opposing WHIP, opposing K/9, opposing BB/9, handedness advantage                                                                          |
-| **Derived (2)**         | ISO (isolated power), hot streak indicator                                                                                                              |
+| Category                    | Features                                                                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Batter Core (15)**        | batting avg, OBP, SLG, wOBA, barrel rate, exit velo, launch angle, sprint speed, K%, BB%, hard hit %, pull %, park factor, platoon advantage, days rest |
+| **Pitcher Matchup (5)**     | opposing ERA, opposing WHIP, opposing K/9, opposing BB/9, handedness advantage                                                                          |
+| **Derived / Context (6)**   | ISO, hot streak, BABIP, cold streak, home/away, opponent quality (win %)                                                                                |
 
 - 4 prediction targets: hits, home runs, RBI, walks
 - StandardScaler fitted on training data only (no leakage)
 - Temporal train/val/test split
 - Parquet caching to avoid re-scraping Baseball Savant
+- Uncertainty quantification: confidence intervals on every prediction
 
 ### Win Probability
 

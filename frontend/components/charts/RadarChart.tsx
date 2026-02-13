@@ -17,11 +17,11 @@ const KEY_FEATURES = [
   // Batter core
   "batting_avg", "on_base_pct", "slugging_pct", "woba",
   "barrel_rate", "exit_velocity", "hard_hit_rate",
-  "k_rate", "bb_rate", "sprint_speed",
+  "k_rate", "bb_rate",
   // Pitcher matchup
-  "opp_era", "opp_whip", "opp_k_per_9",
-  // Derived
-  "iso", "hot_streak",
+  "opp_era", "opp_whip",
+  // Derived / context
+  "iso", "babip", "opp_quality",
 ];
 
 export default function RadarChart({

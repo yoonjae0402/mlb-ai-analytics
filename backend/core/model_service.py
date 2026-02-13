@@ -176,9 +176,17 @@ class ModelService:
             raise ValueError(f"Insufficient data for player {player_id}")
 
         predictions = {}
+        uncertainty_info = {}
+
         if model_type in ("lstm", "ensemble") and self.lstm_model:
-            lstm_pred = self.lstm_model.model.predict(sequence)
-            predictions["lstm"] = lstm_pred.flatten().tolist()
+            # Use MC Dropout for uncertainty estimation
+            mc_result = self.lstm_model.model.predict_with_uncertainty(sequence, n_samples=30)
+            predictions["lstm"] = mc_result["mean"].flatten().tolist()
+            uncertainty_info = {
+                "confidence_interval_low": mc_result["ci_low"].flatten().tolist(),
+                "confidence_interval_high": mc_result["ci_high"].flatten().tolist(),
+                "uncertainty": mc_result["std"].flatten().tolist(),
+            }
 
         if model_type in ("xgboost", "ensemble") and self.xgboost_model:
             xgb_pred = self.xgboost_model.model.predict(sequence)
@@ -195,7 +203,7 @@ class ModelService:
         # Use the requested model's prediction as primary
         primary = predictions.get(model_type, predictions.get("lstm", [0, 0, 0, 0]))
 
-        return {
+        result = {
             "player_id": player_id,
             "model_type": model_type,
             "predicted_hits": primary[0],
@@ -206,6 +214,12 @@ class ModelService:
             "feature_names": FEATURE_NAMES,
             "last_features": sequence[0, -1, :].tolist() if sequence is not None else [],
         }
+
+        # Attach uncertainty info if available (from LSTM MC Dropout)
+        if uncertainty_info:
+            result.update(uncertainty_info)
+
+        return result
 
     def get_attention_weights(self, sample_idx: int = 0) -> dict:
         """Get attention weights for a validation sample."""

@@ -39,7 +39,7 @@ class PlayerLSTM(nn.Module):
 
     def __init__(
         self,
-        input_size: int = 22,
+        input_size: int = 26,
         hidden_size: int = 128,
         num_layers: int = 2,
         output_size: int = 4,
@@ -158,6 +158,45 @@ class PlayerLSTM(nn.Module):
         if return_numpy:
             return predictions.numpy()
         return predictions
+
+    def predict_with_uncertainty(
+        self,
+        features: np.ndarray | torch.Tensor,
+        n_samples: int = 30,
+    ) -> dict:
+        """Monte Carlo Dropout: N forward passes with dropout enabled.
+
+        Returns mean prediction, std (uncertainty), and confidence intervals.
+        """
+        if isinstance(features, np.ndarray):
+            features = torch.FloatTensor(features)
+        if features.dim() == 2:
+            features = features.unsqueeze(0)
+
+        # Enable dropout for MC sampling
+        self.train()
+        samples = []
+        with torch.no_grad():
+            for _ in range(n_samples):
+                pred = self.forward(features)
+                samples.append(pred.numpy())
+
+        self.eval()
+        samples = np.array(samples)  # (n_samples, batch, output_size)
+        mean = samples.mean(axis=0)  # (batch, output_size)
+        std = samples.std(axis=0)    # (batch, output_size)
+
+        # 90% confidence interval
+        ci_low = np.percentile(samples, 5, axis=0)
+        ci_high = np.percentile(samples, 95, axis=0)
+
+        return {
+            "mean": mean,
+            "std": std,
+            "ci_low": ci_low,
+            "ci_high": ci_high,
+            "n_samples": n_samples,
+        }
 
     def save(self, path: str | Path) -> None:
         """Save model checkpoint."""

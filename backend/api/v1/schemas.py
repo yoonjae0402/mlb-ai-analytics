@@ -64,6 +64,9 @@ class PredictionResponse(BaseModel):
     all_predictions: dict
     feature_names: list[str]
     last_features: list[float]
+    confidence_interval_low: Optional[list[float]] = None
+    confidence_interval_high: Optional[list[float]] = None
+    uncertainty: Optional[list[float]] = None
 
 
 # --- Players ---

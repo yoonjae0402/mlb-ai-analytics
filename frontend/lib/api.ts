@@ -242,6 +242,9 @@ export interface PredictionResult {
   all_predictions: Record<string, number[]>;
   feature_names: string[];
   last_features: number[];
+  confidence_interval_low?: number[];
+  confidence_interval_high?: number[];
+  uncertainty?: number[];
 }
 
 export interface PredictionRecord {

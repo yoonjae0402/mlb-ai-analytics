@@ -26,41 +26,26 @@
 - [x] **Accuracy dashboard**: `/dashboard/accuracy` with metrics, per-stat breakdown, calibration chart
 - [x] **Leaderboard page**: `/dashboard/leaderboard` with ranked players + composite scores
 - [x] **Navigation**: sidebar + home page updated with Leaderboard, Accuracy links
-- [x] **Pitcher API wiring**: `searchPitchers()`, `getPitcherStats()` in frontend api.ts
+- [x] **Pitcher stats page**: `/dashboard/pitchers` with search and stats display
+- [x] **Frontend parity audit**: all backend features exposed in UI, confidence scores displayed
+
+### Phase 2c — Advanced Feature Engineering + Uncertainty
+- [x] **26 features**: expanded from 22 with BABIP, cold streak, home/away, opponent quality
+- [x] **BABIP**: `(H - HR) / (AB - K - HR)` — luck vs skill separation
+- [x] **Cold streak**: 1 if BA < .150 last 7 games — slump detection
+- [x] **Home/away**: binary from Game table lookup — split performance
+- [x] **Opponent quality**: team winning % from standings — schedule strength
+- [x] **Game lookup**: `_build_game_lookup()` for home/away derivation
+- [x] **Team quality lookup**: `_build_team_quality()` for opponent win %
+- [x] **Monte Carlo Dropout**: `predict_with_uncertainty()` — 30 forward passes, 90% CI
+- [x] **API schema**: `confidence_interval_low`, `confidence_interval_high`, `uncertainty` on PredictionResponse
+- [x] **CI visualization**: color-coded confidence interval bars on predict page (green/yellow/red)
+- [x] **Architecture page**: updated to 26 features, (batch, 10, 26), MC Dropout documented
+- [x] **Radar chart**: updated with BABIP, opp_quality in key features
 
 ---
 
 ## Remaining Work
-
-### Phase 2c — Advanced Feature Engineering + Uncertainty (Priorities 5-6)
-
-#### Priority 5 — Advanced Feature Engineering
-**Impact: Medium-High — better features = better predictions**
-
-**Backend: [MODIFY] `src/data/feature_builder.py`**
-
-| Feature | Formula | Why |
-|---------|---------|-----|
-| BABIP | (H - HR) / (AB - K - HR + SF) | Luck vs skill separation |
-| Cold streak | 1 if BA < .150 last 7 games | Slump detection |
-| Home/away | Binary indicator from game data | Split performance |
-| Opponent quality | Team winning % from standings | Schedule strength |
-
-**Frontend: [MODIFY] `frontend/app/architecture/page.tsx`**
-- Update feature list to show all 22+ features with descriptions
-
-#### Priority 6 — Uncertainty Quantification
-**Impact: Medium — makes predictions trustworthy**
-
-**Backend:**
-- [MODIFY] `src/models/predictor.py` — Monte Carlo Dropout: N forward passes with dropout enabled, return mean + std as confidence interval
-- [MODIFY] `backend/api/v1/schemas.py` — Add `confidence_interval_low` and `confidence_interval_high` to PredictionResponse
-
-**Frontend:**
-- [MODIFY] `frontend/app/predict/page.tsx` — Show confidence interval bars on prediction cards, color-code by uncertainty (green = tight, yellow = moderate, red = wide)
-- [MODIFY] `frontend/app/dashboard/predictions/page.tsx` — Show confidence badges on daily prediction rows
-
----
 
 ### Phase 2d — Model Diversity + Evaluation + Pages (Priorities 7-9)
 
@@ -116,8 +101,7 @@
 ## Implementation Order
 
 ```
-Phase 2c (Next):    Priorities 5-6 — Advanced features + uncertainty
-Phase 2d (After):   Priorities 7-9 — Model diversity + evaluation + pages
+Phase 2d (Next):    Priorities 7-9 — Model diversity + evaluation + pages
 Phase 2e (Final):   Priority 10    — Production hardening
 ```
 
@@ -131,6 +115,6 @@ Phase 2e (Final):   Priority 10    — Production hardening
 - **Model MSE drops >15%** after pitcher features + scaling (DONE - Phase 2a)
 - **Game-level win probability** achieves >55% accuracy (DONE - Phase 2b)
 - **Prediction accuracy page** shows calibration within 10% (DONE - Phase 2b)
-- **Uncertainty intervals** cover actual values >80% of the time (Phase 2c)
+- **Uncertainty intervals** cover actual values >80% of the time (DONE - Phase 2c)
 - **Ensemble with 4+ models** outperforms best single model (Phase 2d)
 - **Cross-validation R²** consistently >0.15 for hits prediction (Phase 2d)

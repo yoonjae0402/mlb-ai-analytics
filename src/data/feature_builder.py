@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 _scaler: Optional[StandardScaler] = None
 _scaler_path = Path("models/feature_scaler.pkl")
 
-# 22 features: 15 original batter + 7 pitcher/context
+# 26 features: 15 batter core + 5 pitcher matchup + 6 derived/context
 FEATURE_NAMES = [
     # Batter core (15)
     "batting_avg", "on_base_pct", "slugging_pct", "woba",
@@ -30,8 +30,8 @@ FEATURE_NAMES = [
     "park_factor", "platoon_advantage", "days_rest",
     # Pitcher matchup (5)
     "opp_era", "opp_whip", "opp_k_per_9", "opp_bb_per_9", "opp_handedness_adv",
-    # Derived context (2)
-    "iso", "hot_streak",
+    # Derived context (6)
+    "iso", "hot_streak", "babip", "cold_streak", "is_home", "opp_quality",
 ]
 
 TARGET_NAMES = ["hits", "home_runs", "rbi", "walks"]
@@ -62,6 +62,10 @@ LEAGUE_DEFAULTS = {
     # Derived
     "iso": 0.166,  # SLG - BA
     "hot_streak": 0.0,
+    "babip": 0.300,  # League avg BABIP
+    "cold_streak": 0.0,
+    "is_home": 0.5,  # Unknown default
+    "opp_quality": 0.500,  # League avg win %
 }
 
 NUM_FEATURES = len(FEATURE_NAMES)
@@ -167,8 +171,10 @@ def build_sequences_from_db(
         logger.warning("No stats found in database")
         return np.array([]), np.array([]), []
 
-    # Load pitcher stats lookup
+    # Load lookups
     pitcher_lookup = _build_pitcher_lookup(session, seasons)
+    game_lookup = _build_game_lookup(session, seasons)
+    team_quality = _build_team_quality(session, seasons)
 
     # Group by player
     by_player: dict[int, list] = {}
@@ -185,7 +191,7 @@ def build_sequences_from_db(
 
         # Sort by date
         stats.sort(key=lambda s: s.game_date)
-        df = _stats_to_dataframe(stats, pitcher_lookup)
+        df = _stats_to_dataframe(stats, pitcher_lookup, game_lookup, team_quality)
 
         # Create sliding window sequences
         for i in range(len(df) - seq_length):
@@ -371,7 +377,75 @@ def _build_pitcher_lookup(session, seasons: list[int] = None) -> dict:
         return {}
 
 
-def _stats_to_dataframe(stats: list, pitcher_lookup: dict = None) -> pd.DataFrame:
+def _build_game_lookup(session, seasons: list[int] = None) -> dict:
+    """Build lookup mapping (team, date) -> is_home (bool).
+
+    Returns dict mapping (team_name, game_date) -> True if home, False if away.
+    """
+    try:
+        from backend.db.models import Game
+        from sqlalchemy import extract
+
+        query = session.query(Game.game_date, Game.home_team, Game.away_team)
+        if seasons:
+            query = query.filter(extract("year", Game.game_date).in_(seasons))
+
+        lookup = {}
+        for gdate, home, away in query.all():
+            if home:
+                lookup[(home, gdate)] = True
+            if away:
+                lookup[(away, gdate)] = False
+        logger.info(f"Built game lookup: {len(lookup)} team-date entries")
+        return lookup
+    except Exception as e:
+        logger.warning(f"Could not build game lookup: {e}")
+        return {}
+
+
+def _build_team_quality(session, seasons: list[int] = None) -> dict:
+    """Build team quality lookup: team -> win percentage.
+
+    Computes each team's winning percentage from completed games.
+    """
+    try:
+        from backend.db.models import Game
+        from sqlalchemy import extract
+        from collections import defaultdict
+
+        query = session.query(
+            Game.home_team, Game.away_team, Game.home_score, Game.away_score
+        ).filter(
+            Game.home_score.isnot(None),
+            Game.away_score.isnot(None),
+        )
+        if seasons:
+            query = query.filter(extract("year", Game.game_date).in_(seasons))
+
+        wins = defaultdict(int)
+        games = defaultdict(int)
+        for home, away, hs, as_ in query.all():
+            if home:
+                games[home] += 1
+                if hs > as_:
+                    wins[home] += 1
+            if away:
+                games[away] += 1
+                if as_ > hs:
+                    wins[away] += 1
+
+        quality = {}
+        for team, g in games.items():
+            quality[team] = wins[team] / g if g > 0 else 0.500
+        logger.info(f"Built team quality: {len(quality)} teams")
+        return quality
+    except Exception as e:
+        logger.warning(f"Could not build team quality: {e}")
+        return {}
+
+
+def _stats_to_dataframe(stats: list, pitcher_lookup: dict = None,
+                        game_lookup: dict = None, team_quality: dict = None) -> pd.DataFrame:
     """Convert a list of PlayerStat ORM objects to a DataFrame."""
     records = []
     prev_date = None
@@ -402,15 +476,35 @@ def _stats_to_dataframe(stats: list, pitcher_lookup: dict = None) -> pd.DataFram
         # Derived: ISO (isolated power) = SLG - BA
         iso = max(slg - ba, 0.0)
 
-        # Hot streak: 1 if batting avg > .350 over last 7 games
+        # Hot streak & cold streak from rolling 7-game window
         ab = s.at_bats or 0
         hits = s.hits or 0
-        recent_hits.append((hits, ab))
+        hr = s.home_runs or 0
+        k = s.strikeouts or 0
+        recent_hits.append((hits, ab, hr, k))
         if len(recent_hits) > 7:
             recent_hits = recent_hits[-7:]
-        total_h = sum(h for h, _ in recent_hits)
-        total_ab = sum(a for _, a in recent_hits)
+        total_h = sum(h for h, _, _, _ in recent_hits)
+        total_ab = sum(a for _, a, _, _ in recent_hits)
         hot_streak = 1.0 if total_ab >= 15 and total_h / total_ab > 0.350 else 0.0
+        cold_streak = 1.0 if total_ab >= 15 and total_h / total_ab < 0.150 else 0.0
+
+        # BABIP: (H - HR) / (AB - K - HR + SF) — we don't have SF, approximate without it
+        babip_denom = ab - k - hr
+        babip = (hits - hr) / babip_denom if babip_denom > 0 else LEAGUE_DEFAULTS["babip"]
+        babip = max(0.0, min(babip, 1.0))  # Clamp to [0, 1]
+
+        # Home/away from game lookup
+        batter_player = getattr(s, 'player', None)
+        batter_team = batter_player.team if batter_player else None
+        is_home = LEAGUE_DEFAULTS["is_home"]
+        if game_lookup and batter_team:
+            is_home_val = game_lookup.get((batter_team, s.game_date))
+            if is_home_val is not None:
+                is_home = 1.0 if is_home_val else 0.0
+
+        # Opponent quality (opponent team win %)
+        opp_quality = LEAGUE_DEFAULTS["opp_quality"]
 
         # Pitcher matchup features (best-effort from lookup)
         opp_era = LEAGUE_DEFAULTS["opp_era"]
@@ -421,12 +515,9 @@ def _stats_to_dataframe(stats: list, pitcher_lookup: dict = None) -> pd.DataFram
 
         if pitcher_lookup:
             # Match opposing pitcher data by scanning all teams on the same date
-            # (since we don't store opponent team directly on PlayerStat)
             for (team, pdate), p_stats in pitcher_lookup.items():
                 if pdate == s.game_date:
                     # Skip same team (we want opponent pitchers)
-                    batter_player = getattr(s, 'player', None)
-                    batter_team = batter_player.team if batter_player else None
                     if batter_team and team == batter_team:
                         continue
                     # Found an opposing team's pitching data for this date
@@ -439,6 +530,9 @@ def _stats_to_dataframe(stats: list, pitcher_lookup: dict = None) -> pd.DataFram
                     pitcher_throws = p_stats.get("throws", "R")
                     if batter_bats and pitcher_throws:
                         opp_handedness_adv = 1.0 if batter_bats != pitcher_throws else -0.5
+                    # Opponent quality from team standings
+                    if team_quality and team in team_quality:
+                        opp_quality = team_quality[team]
                     break  # Use first opposing team match
 
         records.append({
@@ -467,6 +561,10 @@ def _stats_to_dataframe(stats: list, pitcher_lookup: dict = None) -> pd.DataFram
             # Derived
             "iso": iso,
             "hot_streak": hot_streak,
+            "babip": babip,
+            "cold_streak": cold_streak,
+            "is_home": is_home,
+            "opp_quality": opp_quality,
             # Targets
             "hits": s.hits or 0,
             "home_runs": s.home_runs or 0,

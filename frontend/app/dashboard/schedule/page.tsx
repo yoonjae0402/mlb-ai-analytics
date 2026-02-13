@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getScheduleRange } from "@/lib/api";
 import type { ScheduleGame } from "@/lib/api";
 import {
-  Calendar, ChevronLeft, ChevronRight, Clock, MapPin, ExternalLink,
+  Calendar, ChevronLeft, ChevronRight, Clock, ExternalLink,
 } from "lucide-react";
 
 function formatDate(d: Date): string {
@@ -226,6 +226,11 @@ function ScheduleGameCard({ game, compact }: { game: ScheduleGame; compact: bool
         className="block text-[9px] text-mlb-text bg-mlb-surface/50 rounded px-1 py-0.5 truncate hover:bg-mlb-blue/10 hover:text-mlb-blue transition-colors"
       >
         {game.away_team} @ {game.home_team}
+        {game.home_win_prob != null && (
+          <span className="text-mlb-muted ml-1">
+            {Math.round(game.home_win_prob * 100)}%
+          </span>
+        )}
       </Link>
     );
   }
@@ -263,6 +268,24 @@ function ScheduleGameCard({ game, compact }: { game: ScheduleGame; compact: bool
       {game.home_probable_pitcher && game.home_probable_pitcher !== "TBD" && (
         <div className="text-mlb-muted mt-0.5 truncate">
           {game.away_probable_pitcher || "TBD"} vs {game.home_probable_pitcher}
+        </div>
+      )}
+      {game.home_win_prob != null && (
+        <div className="mt-1">
+          <div className="flex items-center justify-between text-[8px] text-mlb-muted mb-0.5">
+            <span>{Math.round((1 - game.home_win_prob) * 100)}%</span>
+            <span>{Math.round(game.home_win_prob * 100)}%</span>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden flex bg-mlb-surface">
+            <div
+              className="bg-mlb-blue"
+              style={{ width: `${(1 - game.home_win_prob) * 100}%` }}
+            />
+            <div
+              className="bg-mlb-red"
+              style={{ width: `${game.home_win_prob * 100}%` }}
+            />
+          </div>
         </div>
       )}
     </Link>

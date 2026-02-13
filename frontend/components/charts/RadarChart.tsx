@@ -12,19 +12,40 @@ interface RadarChartProps {
   leagueAvg?: number[];
 }
 
+// Key features to display, in priority order across all categories
+const KEY_FEATURES = [
+  // Batter core
+  "batting_avg", "on_base_pct", "slugging_pct", "woba",
+  "barrel_rate", "exit_velocity", "hard_hit_rate",
+  "k_rate", "bb_rate", "sprint_speed",
+  // Pitcher matchup
+  "opp_era", "opp_whip", "opp_k_per_9",
+  // Derived
+  "iso", "hot_streak",
+];
+
 export default function RadarChart({
   playerFeatures,
   featureNames,
   leagueAvg,
 }: RadarChartProps) {
-  // Normalize all features to 0-100 scale
-  const selectedFeatures = [0, 1, 2, 3, 4, 8, 9, 10]; // key features
-  const data = selectedFeatures.map((idx) => {
+  // Pick features that exist in the data, up to 12 for readability
+  const selectedIndices: number[] = [];
+  for (const feat of KEY_FEATURES) {
+    const idx = featureNames.indexOf(feat);
+    if (idx !== -1) selectedIndices.push(idx);
+    if (selectedIndices.length >= 12) break;
+  }
+  // Fallback if nothing matched
+  if (selectedIndices.length === 0) {
+    for (let i = 0; i < Math.min(featureNames.length, 12); i++) selectedIndices.push(i);
+  }
+
+  const data = selectedIndices.map((idx) => {
     const name = FEATURE_DISPLAY_NAMES[featureNames[idx]] || featureNames[idx];
     const playerVal = playerFeatures[idx] || 0;
     const leagueVal = leagueAvg ? leagueAvg[idx] : 0.5;
-    // Simple normalization
-    const maxVal = Math.max(playerVal, leagueVal) * 1.5 || 1;
+    const maxVal = Math.max(Math.abs(playerVal), Math.abs(leagueVal)) * 1.5 || 1;
     return {
       feature: name,
       player: (playerVal / maxVal) * 100,

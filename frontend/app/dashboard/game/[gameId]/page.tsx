@@ -279,12 +279,13 @@ function TeamRosterPanel({
       ) : (
         <div className="divide-y divide-mlb-border/50">
           {/* Table Header */}
-          <div className="grid grid-cols-[1fr_repeat(4,48px)] gap-1 px-4 py-2 text-[10px] font-semibold text-mlb-muted uppercase">
+          <div className="grid grid-cols-[1fr_repeat(5,48px)] gap-1 px-4 py-2 text-[10px] font-semibold text-mlb-muted uppercase">
             <span>Player</span>
             <span className="text-center">H<StatTooltip stat="predicted_hits" /></span>
             <span className="text-center">HR<StatTooltip stat="predicted_hr" /></span>
             <span className="text-center">RBI<StatTooltip stat="predicted_rbi" /></span>
             <span className="text-center">BB<StatTooltip stat="predicted_walks" /></span>
+            <span className="text-center">Conf</span>
           </div>
 
           {withPreds.map((p) => (
@@ -316,7 +317,7 @@ function TeamRosterPanel({
 
 function PlayerPredictionRow({ player }: { player: GamePlayerPrediction }) {
   return (
-    <div className="grid grid-cols-[1fr_repeat(4,48px)] gap-1 px-4 py-2 hover:bg-mlb-surface/30 transition-colors items-center">
+    <div className="grid grid-cols-[1fr_repeat(5,48px)] gap-1 px-4 py-2 hover:bg-mlb-surface/30 transition-colors items-center">
       {/* Player Info */}
       <div className="flex items-center gap-2 min-w-0">
         <PlayerHeadshot url={player.headshot_url} name={player.name} size="sm" />
@@ -333,9 +334,21 @@ function PlayerPredictionRow({ player }: { player: GamePlayerPrediction }) {
           <PredStatCell stat="predicted_hr" value={player.predicted_hr!} isHighlight />
           <PredStatCell stat="predicted_rbi" value={player.predicted_rbi!} />
           <PredStatCell stat="predicted_walks" value={player.predicted_walks!} />
+          <div className="text-center">
+            {player.confidence != null ? (
+              <span className={`text-[10px] font-semibold ${
+                player.confidence >= 0.7 ? "text-mlb-green" : player.confidence >= 0.4 ? "text-yellow-400" : "text-mlb-muted"
+              }`}>
+                {Math.round(player.confidence * 100)}%
+              </span>
+            ) : (
+              <span className="text-[10px] text-mlb-muted">—</span>
+            )}
+          </div>
         </>
       ) : (
         <>
+          <span className="text-center text-[10px] text-mlb-muted">—</span>
           <span className="text-center text-[10px] text-mlb-muted">—</span>
           <span className="text-center text-[10px] text-mlb-muted">—</span>
           <span className="text-center text-[10px] text-mlb-muted">—</span>

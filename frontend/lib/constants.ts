@@ -48,6 +48,13 @@ export const FEATURE_DISPLAY_NAMES: Record<string, string> = {
   park_factor: "Park Factor",
   platoon_advantage: "Platoon Adv",
   days_rest: "Days Rest",
+  opp_era: "Opp ERA",
+  opp_whip: "Opp WHIP",
+  opp_k_per_9: "Opp K/9",
+  opp_bb_per_9: "Opp BB/9",
+  opp_handedness_adv: "Matchup Adv",
+  iso: "ISO",
+  hot_streak: "Hot Streak",
 };
 
 export const TARGET_DISPLAY_NAMES: Record<string, string> = {
@@ -78,6 +85,7 @@ export const NAV_SECTIONS = [
     label: "Players",
     items: [
       { name: "Player Index", path: "/dashboard/players", icon: "Users" },
+      { name: "Pitcher Stats", path: "/dashboard/pitchers", icon: "TrendingUp" },
       { name: "Compare Players", path: "/dashboard/compare", icon: "Scale" },
     ],
   },

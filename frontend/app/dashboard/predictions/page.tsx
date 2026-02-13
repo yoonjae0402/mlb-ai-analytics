@@ -109,19 +109,20 @@ export default function PredictionsPage() {
               <th className="text-right px-3 py-2">Hits</th>
               <th className="text-right px-3 py-2">HR</th>
               <th className="text-right px-3 py-2">RBI</th>
-              <th className="text-right px-4 py-2">BB</th>
+              <th className="text-right px-3 py-2">BB</th>
+              <th className="text-right px-4 py-2">Conf</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="text-center py-8 text-xs text-mlb-muted">
+                <td colSpan={8} className="text-center py-8 text-xs text-mlb-muted">
                   Loading predictions...
                 </td>
               </tr>
             ) : predictions.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-8 text-xs text-mlb-muted">
+                <td colSpan={8} className="text-center py-8 text-xs text-mlb-muted">
                   No predictions available
                 </td>
               </tr>
@@ -154,8 +155,19 @@ export default function PredictionsPage() {
                   <td className="px-3 py-2 text-right text-xs text-mlb-text font-mono">
                     {pred.predicted_rbi.toFixed(2)}
                   </td>
-                  <td className="px-4 py-2 text-right text-xs text-mlb-text font-mono">
+                  <td className="px-3 py-2 text-right text-xs text-mlb-text font-mono">
                     {pred.predicted_walks.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {pred.confidence != null ? (
+                      <span className={`text-xs font-mono font-semibold ${
+                        pred.confidence >= 0.7 ? "text-mlb-green" : pred.confidence >= 0.4 ? "text-yellow-400" : "text-mlb-muted"
+                      }`}>
+                        {Math.round(pred.confidence * 100)}%
+                      </span>
+                    ) : (
+                      <span className="text-xs text-mlb-muted">—</span>
+                    )}
                   </td>
                 </tr>
               ))
@@ -178,7 +190,14 @@ function BestBetHighlight({ prediction, rank }: { prediction: DailyPrediction; r
         className="mx-auto mb-2"
       />
       <p className="text-xs font-semibold text-mlb-text truncate">{prediction.player_name}</p>
-      <p className="text-[10px] text-mlb-muted mb-2">{prediction.team}</p>
+      <p className="text-[10px] text-mlb-muted mb-1">{prediction.team}</p>
+      {prediction.confidence != null && (
+        <p className={`text-[10px] font-semibold mb-2 ${
+          prediction.confidence >= 0.7 ? "text-mlb-green" : prediction.confidence >= 0.4 ? "text-yellow-400" : "text-mlb-muted"
+        }`}>
+          {Math.round(prediction.confidence * 100)}% confidence
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-1 text-[10px]">
         <div className="bg-mlb-card rounded px-1 py-0.5">
           <span className="text-mlb-muted">H </span>

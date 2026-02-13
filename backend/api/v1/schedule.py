@@ -1,14 +1,40 @@
 """Schedule and calendar endpoints."""
 
+import logging
 from datetime import date, timedelta
 from fastapi import APIRouter, Query
 
 from backend.api.v1.schemas import ScheduleResponse, ScheduleGameResponse
 from src.data.pipeline import MLBDataPipeline
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/schedule", tags=["schedule"])
 
 _pipeline = MLBDataPipeline()
+
+
+def _compute_win_prob_for_game(game: dict) -> float | None:
+    """Compute win probability for a schedule game (best-effort)."""
+    try:
+        from backend.db.session import SyncSessionLocal
+        from backend.services.game_predictor import compute_win_probability
+
+        session = SyncSessionLocal()
+        try:
+            result = compute_win_probability(
+                session,
+                home_team_id=game.get("home_id", 0),
+                away_team_id=game.get("away_id", 0),
+                home_team_name=game.get("home_name", ""),
+                away_team_name=game.get("away_name", ""),
+            )
+            return round(result.home_win_pct, 3)
+        finally:
+            session.close()
+    except Exception as e:
+        logger.debug(f"Could not compute win prob: {e}")
+        return None
 
 
 @router.get("/range", response_model=ScheduleResponse)
@@ -38,7 +64,7 @@ async def schedule_range(
             away_probable_pitcher=g.get("away_probable_pitcher", "TBD"),
             home_probable_pitcher=g.get("home_probable_pitcher", "TBD"),
             game_datetime=g.get("game_datetime"),
-            home_win_prob=None,
+            home_win_prob=_compute_win_prob_for_game(g),
         ))
 
     return ScheduleResponse(
@@ -68,7 +94,7 @@ async def schedule_today():
             away_probable_pitcher=g.get("away_probable_pitcher", "TBD"),
             home_probable_pitcher=g.get("home_probable_pitcher", "TBD"),
             game_datetime=g.get("game_datetime"),
-            home_win_prob=None,
+            home_win_prob=_compute_win_prob_for_game(g),
         ))
 
     return ScheduleResponse(

@@ -13,7 +13,7 @@ const techStack = [
 
 const pipeline = [
   { icon: Database, label: "Data Sources", desc: "pybaseball + MLB Stats API", color: "text-mlb-blue" },
-  { icon: Zap, label: "Feature Engineering", desc: "Rolling averages, trends, Statcast metrics", color: "text-yellow-400" },
+  { icon: Zap, label: "Feature Engineering", desc: "22 features: Statcast + pitcher matchup + derived", color: "text-yellow-400" },
   { icon: Brain, label: "Models", desc: "BiLSTM + Attention, XGBoost, Ensemble", color: "text-mlb-red" },
   { icon: Server, label: "FastAPI", desc: "REST API with async endpoints", color: "text-mlb-green" },
   { icon: Monitor, label: "Next.js", desc: "Interactive dashboard + visualizations", color: "text-purple-400" },
@@ -28,7 +28,8 @@ const models = [
       "8-head self-attention mechanism",
       "LayerNorm + GELU activation + Dropout",
       "Xavier/Glorot weight initialization",
-      "Input: (batch, 10, 15) → Output: (batch, 4)",
+      "Input: (batch, 10, 22) → Output: (batch, 4)",
+      "22 features: 15 batter + 5 pitcher matchup + 2 derived (ISO, hot streak)",
     ],
   },
   {
@@ -36,7 +37,7 @@ const models = [
     desc: "Gradient-boosted trees with sequence flattening via summary statistics.",
     details: [
       "Per-feature: mean, std, last value, linear trend slope",
-      "Flattens (n, 10, 15) → (n, 60)",
+      "Flattens (n, 10, 22) → (n, 88)",
       "Separate XGBRegressor per target",
       "Default: 200 estimators, max_depth=6",
     ],
@@ -161,6 +162,12 @@ export default function ArchitecturePage() {
             ["GET", "/v1/data/status", "Data freshness"],
             ["POST", "/v1/data/refresh", "Refresh data"],
             ["POST", "/v1/tune", "Start Optuna tuning"],
+            ["GET", "/v1/games/{id}/win-probability", "Win probability"],
+            ["GET", "/v1/schedule/range", "Schedule calendar"],
+            ["GET", "/v1/accuracy/summary", "Prediction accuracy"],
+            ["GET", "/v1/leaderboard", "Player leaderboard"],
+            ["GET", "/v1/pitchers/search", "Search pitchers"],
+            ["GET", "/v1/pitchers/{id}/stats", "Pitcher stats"],
           ].map(([method, path, desc]) => (
             <div key={path} className="flex items-center gap-3">
               <span

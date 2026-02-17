@@ -18,7 +18,7 @@ def _run_training(config: dict):
         results = svc.train_models(session, config)
 
         # Store model versions in DB
-        for model_type in ["lstm", "xgboost"]:
+        for model_type in ["lstm", "xgboost", "lightgbm", "linear"]:
             if model_type in results:
                 r = results[model_type]
                 mv = ModelVersion(

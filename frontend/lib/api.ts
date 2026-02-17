@@ -167,6 +167,11 @@ export interface TrainConfig {
   max_depth?: number;
   xgb_lr?: number;
   seasons?: number[];
+  train_lightgbm?: boolean;
+  train_linear?: boolean;
+  num_leaves?: number;
+  linear_alpha?: number;
+  linear_model_type?: string;
 }
 
 export interface TrainStatus {

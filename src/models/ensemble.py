@@ -1,5 +1,5 @@
 """
-Ensemble methods combining LSTM and XGBoost predictions.
+Ensemble methods combining predictions from multiple models (LSTM, XGBoost, LightGBM, Linear).
 
 Strategies:
     - weighted_average: Tunable weight blend of model predictions
@@ -21,7 +21,7 @@ class EnsemblePredictor:
 
     Args:
         strategy: 'weighted_average' or 'stacking'
-        weights: Per-model weights for weighted_average (default: equal)
+        weights: Per-model weights for weighted_average (default: equal weights)
     """
 
     def __init__(
@@ -106,3 +106,63 @@ class EnsemblePredictor:
             self._meta_model[t].predict(stacked) for t in range(n_targets)
         ])
         return out
+
+    @staticmethod
+    def optimize_weights(
+        model_predictions: list[np.ndarray],
+        y_true: np.ndarray,
+        n_steps: int = 10,
+    ) -> dict:
+        """
+        Find optimal weights by grid search over the weight simplex.
+
+        For 2 models: sweeps from [1,0] to [0,1] in n_steps intervals.
+        For 3+ models: samples n_steps^(n_models-1) combinations on the simplex.
+
+        Returns:
+            Dict with 'weights' (list), 'mse' (float), 'sweep' (list of dicts).
+        """
+        n_models = len(model_predictions)
+        best_weights = [1.0 / n_models] * n_models
+        best_mse = float("inf")
+        sweep = []
+
+        if n_models == 2:
+            for i in range(n_steps + 1):
+                w = i / n_steps
+                weights = [w, 1 - w]
+                pred = sum(wt * p for wt, p in zip(weights, model_predictions))
+                mse = float(np.mean((pred - y_true) ** 2))
+                sweep.append({"weights": weights, "mse": mse})
+                if mse < best_mse:
+                    best_mse = mse
+                    best_weights = weights
+
+        elif n_models == 3:
+            # Grid over 3D simplex
+            for i in range(n_steps + 1):
+                for j in range(n_steps + 1 - i):
+                    k = n_steps - i - j
+                    weights = [i / n_steps, j / n_steps, k / n_steps]
+                    pred = sum(wt * p for wt, p in zip(weights, model_predictions))
+                    mse = float(np.mean((pred - y_true) ** 2))
+                    sweep.append({"weights": weights, "mse": mse})
+                    if mse < best_mse:
+                        best_mse = mse
+                        best_weights = weights
+
+        else:
+            # For 4+ models, use random search on simplex
+            rng = np.random.default_rng(42)
+            n_samples = n_steps * 10
+            for _ in range(n_samples):
+                raw = rng.exponential(1.0, n_models)
+                weights = (raw / raw.sum()).tolist()
+                pred = sum(wt * p for wt, p in zip(weights, model_predictions))
+                mse = float(np.mean((pred - y_true) ** 2))
+                sweep.append({"weights": weights, "mse": mse})
+                if mse < best_mse:
+                    best_mse = mse
+                    best_weights = weights
+
+        return {"weights": best_weights, "mse": best_mse, "sweep": sweep}

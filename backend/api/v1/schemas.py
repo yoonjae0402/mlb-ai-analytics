@@ -16,6 +16,11 @@ class TrainRequest(BaseModel):
     max_depth: int = 6
     xgb_lr: float = 0.1
     seasons: list[int] = [2023, 2024]
+    train_lightgbm: bool = False
+    train_linear: bool = False
+    num_leaves: int = 31
+    linear_alpha: float = 1.0
+    linear_model_type: str = "ridge"
 
 
 class ModelMetrics(BaseModel):
@@ -30,6 +35,8 @@ class ModelMetrics(BaseModel):
 class TrainResult(BaseModel):
     lstm: Optional[dict] = None
     xgboost: Optional[dict] = None
+    lightgbm: Optional[dict] = None
+    linear: Optional[dict] = None
 
 
 class TrainStatus(BaseModel):
@@ -45,6 +52,8 @@ class TrainStatus(BaseModel):
 class TrainCurves(BaseModel):
     lstm: Optional[dict] = None
     xgboost: Optional[dict] = None
+    lightgbm: Optional[dict] = None
+    linear: Optional[dict] = None
 
 
 # --- Predict ---
@@ -237,6 +246,8 @@ class PredictionsHubResponse(BaseModel):
 class EvaluationResponse(BaseModel):
     lstm: Optional[dict] = None
     xgboost: Optional[dict] = None
+    lightgbm: Optional[dict] = None
+    linear: Optional[dict] = None
     baselines: Optional[dict] = None
     comparison: Optional[dict] = None
 

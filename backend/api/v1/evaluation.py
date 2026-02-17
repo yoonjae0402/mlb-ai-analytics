@@ -17,6 +17,11 @@ async def model_metrics():
         result["lstm"] = svc.lstm_model.metrics
     if svc.xgboost_model:
         result["xgboost"] = svc.xgboost_model.metrics
+    if svc.lightgbm_model:
+        result["lightgbm"] = svc.lightgbm_model.metrics
+    if svc.linear_model:
+        result["linear"] = svc.linear_model.metrics
+    result["trained_models"] = svc.get_trained_model_names()
     return result
 
 
@@ -37,6 +42,10 @@ async def model_evaluation():
             result["lstm"] = svc.lstm_model.metrics
         if svc.xgboost_model:
             result["xgboost"] = svc.xgboost_model.metrics
+        if svc.lightgbm_model:
+            result["lightgbm"] = svc.lightgbm_model.metrics
+        if svc.linear_model:
+            result["linear"] = svc.linear_model.metrics
         return EvaluationResponse(**result)
 
 

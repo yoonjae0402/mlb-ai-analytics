@@ -2,7 +2,6 @@
 
 import logging
 import time
-import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -13,7 +12,8 @@ from src.models.predictor import PlayerLSTM
 from src.models.xgboost_model import XGBoostPredictor
 from src.models.ensemble import EnsemblePredictor
 from src.models.model_registry import (
-    TrainedModel, compute_metrics, train_lstm, train_xgboost
+    TrainedModel, compute_metrics, train_lstm, train_xgboost,
+    train_lightgbm, train_linear,
 )
 from src.data.feature_builder import (
     build_sequences_from_db, build_player_sequence, temporal_split,
@@ -32,6 +32,8 @@ class ModelService:
 
         self.lstm_model: Optional[TrainedModel] = None
         self.xgboost_model: Optional[TrainedModel] = None
+        self.lightgbm_model: Optional[TrainedModel] = None
+        self.linear_model: Optional[TrainedModel] = None
         self.ensemble: Optional[EnsemblePredictor] = None
 
         self.training_status = {
@@ -53,19 +55,29 @@ class ModelService:
         self._train_curves: dict = {}
 
     def train_models(self, db_session, config: dict) -> dict:
-        """Train LSTM + XGBoost on real data from DB.
+        """Train models on real data from DB.
 
         Args:
             db_session: Sync SQLAlchemy session
             config: Training config dict (epochs, lr, hidden_size, etc.)
+                    Optional keys: train_lightgbm (bool), train_linear (bool)
 
         Returns:
-            Dict with training results for both models.
+            Dict with training results for trained models.
         """
         self.training_status["is_training"] = True
         self.training_status["current_model"] = "Loading data"
 
         try:
+            # Determine which models to train
+            do_lightgbm = config.get("train_lightgbm", False)
+            do_linear = config.get("train_linear", False)
+
+            # Compute progress slice sizes
+            n_models = 2 + (1 if do_lightgbm else 0) + (1 if do_linear else 0)
+            slice_pct = 100.0 / n_models
+            progress_offset = 0.0
+
             # Load real data
             seasons = config.get("seasons", [2023, 2024])
             X, y, player_ids = build_sequences_from_db(
@@ -82,14 +94,14 @@ class ModelService:
 
             results = {}
 
-            # Train LSTM
+            # --- Train LSTM ---
             epochs = config.get("epochs", 30)
             self.training_status["current_model"] = "LSTM"
             self.training_status["total_epochs"] = epochs
 
             def lstm_progress(epoch, total, train_loss, val_loss):
                 self.training_status["current_epoch"] = epoch + 1
-                self.training_status["progress"] = (epoch + 1) / total * 50  # 0-50%
+                self.training_status["progress"] = progress_offset + (epoch + 1) / total * slice_pct
                 self.training_status["train_loss"] = train_loss
                 self.training_status["val_loss"] = val_loss
 
@@ -102,7 +114,6 @@ class ModelService:
                 progress_callback=lstm_progress,
             )
 
-            # Save LSTM checkpoint
             version = f"v{int(time.time())}"
             lstm_path = self.checkpoint_dir / f"lstm_{version}.pth"
             self.lstm_model.model.save(lstm_path)
@@ -112,12 +123,13 @@ class ModelService:
                 "checkpoint": str(lstm_path),
                 "version": version,
             }
+            progress_offset += slice_pct
 
-            # Train XGBoost
+            # --- Train XGBoost ---
             self.training_status["current_model"] = "XGBoost"
 
             def xgb_progress(step, total, train_loss, val_loss):
-                self.training_status["progress"] = 50 + (step + 1) / total * 50  # 50-100%
+                self.training_status["progress"] = progress_offset + (step + 1) / total * slice_pct
                 self.training_status["train_loss"] = train_loss
                 self.training_status["val_loss"] = val_loss
 
@@ -129,7 +141,6 @@ class ModelService:
                 progress_callback=xgb_progress,
             )
 
-            # Save XGBoost checkpoint
             xgb_path = self.checkpoint_dir / f"xgboost_{version}.pkl"
             self.xgboost_model.model.save(xgb_path)
             results["xgboost"] = {
@@ -138,21 +149,70 @@ class ModelService:
                 "checkpoint": str(xgb_path),
                 "version": version,
             }
+            progress_offset += slice_pct
+
+            # --- Train LightGBM (optional) ---
+            if do_lightgbm:
+                self.training_status["current_model"] = "LightGBM"
+
+                def lgb_progress(step, total, train_loss, val_loss):
+                    self.training_status["progress"] = progress_offset + (step + 1) / total * slice_pct
+                    self.training_status["train_loss"] = train_loss
+                    self.training_status["val_loss"] = val_loss
+
+                self.lightgbm_model = train_lightgbm(
+                    self.X_train, self.y_train, self.X_val, self.y_val,
+                    n_estimators=config.get("n_estimators", 200),
+                    max_depth=config.get("max_depth", 6),
+                    learning_rate=config.get("xgb_lr", 0.1),
+                    num_leaves=config.get("num_leaves", 31),
+                    progress_callback=lgb_progress,
+                )
+
+                lgb_path = self.checkpoint_dir / f"lightgbm_{version}.pkl"
+                self.lightgbm_model.model.save(lgb_path)
+                results["lightgbm"] = {
+                    "metrics": self.lightgbm_model.metrics,
+                    "train_time": self.lightgbm_model.train_time,
+                    "checkpoint": str(lgb_path),
+                    "version": version,
+                }
+                progress_offset += slice_pct
+
+            # --- Train Linear (optional) ---
+            if do_linear:
+                self.training_status["current_model"] = "Linear"
+
+                self.linear_model = train_linear(
+                    self.X_train, self.y_train, self.X_val, self.y_val,
+                    alpha=config.get("linear_alpha", 1.0),
+                    model_type=config.get("linear_model_type", "ridge"),
+                )
+
+                lin_path = self.checkpoint_dir / f"linear_{version}.pkl"
+                self.linear_model.model.save(lin_path)
+                results["linear"] = {
+                    "metrics": self.linear_model.metrics,
+                    "train_time": self.linear_model.train_time,
+                    "checkpoint": str(lin_path),
+                    "version": version,
+                }
 
             # Store training curves
-            self._train_curves = {
-                "lstm": {
-                    "train_losses": self.lstm_model.train_losses,
-                    "val_losses": self.lstm_model.val_losses,
-                },
-                "xgboost": {
-                    "train_losses": self.xgboost_model.train_losses,
-                    "val_losses": self.xgboost_model.val_losses,
-                },
-            }
+            self._train_curves = {}
+            for key, model in [
+                ("lstm", self.lstm_model),
+                ("xgboost", self.xgboost_model),
+                ("lightgbm", self.lightgbm_model),
+                ("linear", self.linear_model),
+            ]:
+                if model is not None:
+                    self._train_curves[key] = {
+                        "train_losses": model.train_losses,
+                        "val_losses": model.val_losses,
+                    }
 
             self.training_status["progress"] = 100.0
-
             return results
 
         finally:
@@ -166,7 +226,7 @@ class ModelService:
         Args:
             db_session: Sync SQLAlchemy session
             player_id: Internal player ID
-            model_type: "lstm", "xgboost", or "ensemble"
+            model_type: "lstm", "xgboost", "lightgbm", "linear", or "ensemble"
 
         Returns:
             Dict with predictions and feature values.
@@ -192,12 +252,21 @@ class ModelService:
             xgb_pred = self.xgboost_model.model.predict(sequence)
             predictions["xgboost"] = xgb_pred.flatten().tolist()
 
-        if model_type == "ensemble" and len(predictions) == 2:
-            ens = EnsemblePredictor(strategy="weighted_average", weights=[0.5, 0.5])
-            ens_pred = ens.predict([
-                np.array(predictions["lstm"]).reshape(1, -1),
-                np.array(predictions["xgboost"]).reshape(1, -1),
-            ])
+        if model_type in ("lightgbm", "ensemble") and self.lightgbm_model:
+            lgb_pred = self.lightgbm_model.model.predict(sequence)
+            predictions["lightgbm"] = lgb_pred.flatten().tolist()
+
+        if model_type in ("linear", "ensemble") and self.linear_model:
+            lin_pred = self.linear_model.model.predict(sequence)
+            predictions["linear"] = lin_pred.flatten().tolist()
+
+        # Ensemble: equal-weight blend of all available models
+        if model_type == "ensemble" and len(predictions) >= 2:
+            preds_arrays = [
+                np.array(v).reshape(1, -1) for v in predictions.values()
+            ]
+            ens = EnsemblePredictor(strategy="weighted_average")
+            ens_pred = ens.predict(preds_arrays)
             predictions["ensemble"] = ens_pred.flatten().tolist()
 
         # Use the requested model's prediction as primary
@@ -257,8 +326,6 @@ class ModelService:
         pred.sum().backward()
 
         grads = x.grad.abs().numpy()[0]  # (seq_length, features)
-
-        # Feature importance = mean absolute gradient across time
         feature_importance = grads.mean(axis=0).tolist()
 
         return {
@@ -272,59 +339,123 @@ class ModelService:
         self, db_session, player_id: int, strategy: str = "weighted_average",
         weights: list[float] = None,
     ) -> dict:
-        """Ensemble prediction with configurable strategy."""
-        if not self.lstm_model or not self.xgboost_model:
-            raise ValueError("Both models must be trained first")
+        """Ensemble prediction with configurable strategy across all trained models."""
+        trained = self._get_trained_tree_models()
+        if not self.lstm_model and not trained:
+            raise ValueError("At least one model must be trained first")
 
         sequence = build_player_sequence(db_session, player_id)
         if sequence is None:
             raise ValueError(f"Insufficient data for player {player_id}")
 
-        lstm_pred = self.lstm_model.model.predict(sequence).reshape(1, -1)
-        xgb_pred = self.xgboost_model.model.predict(sequence).reshape(1, -1)
+        individual_preds = {}
+        pred_arrays = []
 
+        if self.lstm_model:
+            p = self.lstm_model.model.predict(sequence).reshape(1, -1)
+            individual_preds["lstm"] = p.flatten().tolist()
+            pred_arrays.append(p)
+
+        if self.xgboost_model:
+            p = self.xgboost_model.model.predict(sequence).reshape(1, -1)
+            individual_preds["xgboost"] = p.flatten().tolist()
+            pred_arrays.append(p)
+
+        if self.lightgbm_model:
+            p = self.lightgbm_model.model.predict(sequence).reshape(1, -1)
+            individual_preds["lightgbm"] = p.flatten().tolist()
+            pred_arrays.append(p)
+
+        if self.linear_model:
+            p = self.linear_model.model.predict(sequence).reshape(1, -1)
+            individual_preds["linear"] = p.flatten().tolist()
+            pred_arrays.append(p)
+
+        n_models = len(pred_arrays)
         if weights is None:
-            weights = [0.5, 0.5]
+            weights = [1.0 / n_models] * n_models
 
         ens = EnsemblePredictor(strategy=strategy, weights=weights)
 
         if strategy == "stacking" and self.X_val is not None:
-            lstm_val = self.lstm_model.model.predict(self.X_val).reshape(-1, 4)
-            xgb_val = self.xgboost_model.model.predict(self.X_val).reshape(-1, 4)
-            ens.fit_stacking([lstm_val, xgb_val], self.y_val)
+            val_preds = []
+            if self.lstm_model:
+                val_preds.append(self.lstm_model.model.predict(self.X_val).reshape(-1, 4))
+            if self.xgboost_model:
+                val_preds.append(self.xgboost_model.model.predict(self.X_val).reshape(-1, 4))
+            if self.lightgbm_model:
+                val_preds.append(self.lightgbm_model.model.predict(self.X_val).reshape(-1, 4))
+            if self.linear_model:
+                val_preds.append(self.linear_model.model.predict(self.X_val).reshape(-1, 4))
+            ens.fit_stacking(val_preds, self.y_val)
 
-        ens_pred = ens.predict([lstm_pred, xgb_pred])
+        ens_pred = ens.predict(pred_arrays)
+        individual_preds["ensemble"] = ens_pred.flatten().tolist()
 
         return {
             "player_id": player_id,
             "strategy": strategy,
             "weights": weights,
-            "predictions": {
-                "lstm": lstm_pred.flatten().tolist(),
-                "xgboost": xgb_pred.flatten().tolist(),
-                "ensemble": ens_pred.flatten().tolist(),
-            },
+            "predictions": individual_preds,
             "target_names": TARGET_NAMES,
+            "n_models": n_models,
         }
 
-    def get_weight_sensitivity(self) -> dict:
-        """Sweep ensemble weights from 0 to 1 and compute MSE at each point."""
-        if not self.lstm_model or not self.xgboost_model or self.X_val is None:
-            raise ValueError("Both models must be trained first")
+    def get_weight_sensitivity(self, model_a: str = "lstm", model_b: str = "xgboost") -> dict:
+        """Sweep ensemble weights between two models and compute MSE at each point."""
+        models = {
+            "lstm": self.lstm_model,
+            "xgboost": self.xgboost_model,
+            "lightgbm": self.lightgbm_model,
+            "linear": self.linear_model,
+        }
+        m_a = models.get(model_a)
+        m_b = models.get(model_b)
 
-        lstm_pred = self.lstm_model.model.predict(self.X_val).reshape(-1, 4)
-        xgb_pred = self.xgboost_model.model.predict(self.X_val).reshape(-1, 4)
+        if not m_a or not m_b or self.X_val is None:
+            raise ValueError("Both selected models must be trained first")
+
+        pred_a = m_a.model.predict(self.X_val).reshape(-1, 4)
+        pred_b = m_b.model.predict(self.X_val).reshape(-1, 4)
 
         steps = 21
         results = []
         for i in range(steps):
             w = i / (steps - 1)
             ens = EnsemblePredictor(strategy="weighted_average", weights=[w, 1 - w])
-            pred = ens.predict([lstm_pred, xgb_pred])
+            pred = ens.predict([pred_a, pred_b])
             mse = float(np.mean((pred - self.y_val) ** 2))
-            results.append({"lstm_weight": round(w, 2), "mse": mse})
+            results.append({
+                "lstm_weight": round(w, 2),
+                f"{model_a}_weight": round(w, 2),
+                "mse": mse,
+            })
 
-        return {"sweep": results}
+        return {
+            "sweep": results,
+            "model_a": model_a,
+            "model_b": model_b,
+        }
+
+    def get_trained_model_names(self) -> list[str]:
+        """Return names of all currently trained models."""
+        names = []
+        if self.lstm_model:
+            names.append("lstm")
+        if self.xgboost_model:
+            names.append("xgboost")
+        if self.lightgbm_model:
+            names.append("lightgbm")
+        if self.linear_model:
+            names.append("linear")
+        return names
+
+    def _get_trained_tree_models(self) -> list:
+        out = []
+        for m in [self.xgboost_model, self.lightgbm_model, self.linear_model]:
+            if m is not None:
+                out.append(m)
+        return out
 
     def get_training_status(self) -> dict:
         """Return current training status."""
@@ -336,4 +467,6 @@ class ModelService:
 
     @property
     def is_trained(self) -> bool:
-        return self.lstm_model is not None or self.xgboost_model is not None
+        return any(m is not None for m in [
+            self.lstm_model, self.xgboost_model, self.lightgbm_model, self.linear_model
+        ])

@@ -5,12 +5,33 @@ import {
 } from "recharts";
 import ChartExplainer from "@/components/ui/ChartExplainer";
 
+// Default model display config
+const DEFAULT_MODEL_COLORS: Record<string, string> = {
+  LSTM: "#e63946",
+  XGBoost: "#4895ef",
+  LightGBM: "#2dc653",
+  Linear: "#f4b942",
+  Ensemble: "#9b5de5",
+};
+
 interface BarComparisonProps {
-  data: { name: string; lstm: number; xgboost: number; ensemble?: number }[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: Record<string, any>[];
   title?: string;
+  /** Optional explicit list of bar keys (uses auto-detect if omitted) */
+  keys?: string[];
 }
 
-export default function BarComparison({ data, title = "Per-Target MSE" }: BarComparisonProps) {
+export default function BarComparison({
+  data,
+  title = "Per-Target MSE",
+  keys,
+}: BarComparisonProps) {
+  // Auto-detect bar keys: all keys except "name"
+  const barKeys =
+    keys ??
+    (data.length > 0 ? Object.keys(data[0]).filter((k) => k !== "name") : []);
+
   return (
     <div className="bg-mlb-card border border-mlb-border rounded-xl p-4">
       <h3 className="text-sm font-semibold text-mlb-text mb-1">{title}</h3>
@@ -32,11 +53,18 @@ export default function BarComparison({ data, title = "Per-Target MSE" }: BarCom
             }}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="lstm" fill="#e63946" name="LSTM" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="xgboost" fill="#4895ef" name="XGBoost" radius={[4, 4, 0, 0]} />
-          {data.some((d) => d.ensemble !== undefined) && (
-            <Bar dataKey="ensemble" fill="#2dc653" name="Ensemble" radius={[4, 4, 0, 0]} />
-          )}
+          {barKeys.map((key, i) => (
+            <Bar
+              key={key}
+              dataKey={key}
+              fill={
+                DEFAULT_MODEL_COLORS[key] ??
+                `hsl(${(i * 60) % 360}, 70%, 55%)`
+              }
+              name={key}
+              radius={[4, 4, 0, 0]}
+            />
+          ))}
         </BarChart>
       </ResponsiveContainer>
     </div>

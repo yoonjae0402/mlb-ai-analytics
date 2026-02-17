@@ -49,18 +49,25 @@
 
 ### Phase 2d — Model Diversity + Evaluation + Pages (Priorities 7-9)
 
-#### Priority 7 — Model Diversity & Ensemble
+#### Priority 7 — Model Diversity & Ensemble ✅
 **Impact: Medium — more diverse models = better ensemble**
 
 **Backend:**
-- [NEW] `src/models/lightgbm_model.py` — LightGBM regressor with same feature flattening as XGBoost
-- [NEW] `src/models/linear_model.py` — Ridge/Lasso regression baseline
-- [MODIFY] `src/models/ensemble.py` — Support 3+ base models, auto weight optimization via CV
-- [MODIFY] `backend/api/v1/train.py` — Add LightGBM and linear model training options
+- [x] `src/models/lightgbm_model.py` — LightGBM regressor with same feature flattening as XGBoost
+- [x] `src/models/linear_model.py` — Ridge/Lasso regression baseline
+- [x] `src/models/ensemble.py` — Support 3+ base models, `optimize_weights()` via grid search
+- [x] `src/models/model_registry.py` — `train_lightgbm()` and `train_linear()` functions
+- [x] `backend/core/model_service.py` — lightgbm/linear support, N-model ensemble, `get_trained_model_names()`
+- [x] `backend/api/v1/train.py` — saves lightgbm/linear to DB
+- [x] `backend/api/v1/schemas.py` — TrainRequest: `train_lightgbm`, `train_linear` flags; TrainResult/TrainCurves: all 4 models
+- [x] `backend/api/v1/evaluation.py` — returns lightgbm/linear metrics
+- [x] `backend/requirements.txt` — lightgbm>=4.1.0
 
 **Frontend:**
-- [MODIFY] `frontend/app/models/page.tsx` — Show all model types in comparison table (LSTM, XGBoost, LightGBM, Linear)
-- [MODIFY] `frontend/app/ensemble/page.tsx` — Support 3+ model weight sliders
+- [x] `frontend/app/models/page.tsx` — Model comparison table (LSTM, XGBoost, LightGBM, Linear), BEST badge, checkboxes to enable extra models
+- [x] `frontend/app/ensemble/page.tsx` — Per-model weight sliders, normalized blend bar, N-model support
+- [x] `frontend/components/charts/BarComparison.tsx` — Dynamic keys (any model set)
+- [x] `frontend/lib/api.ts` — TrainConfig with lightgbm/linear fields
 
 #### Priority 8 — Missing Frontend Pages
 **Impact: Medium — completes the product**

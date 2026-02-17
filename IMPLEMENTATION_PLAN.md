@@ -92,27 +92,30 @@
 
 ---
 
-### Phase 2e — Production Hardening (Priority 10)
+### Phase 2e — Production Hardening (Priority 10) ✅
 
 **Backend:**
-- [MODIFY] `backend/core/model_service.py` — Persist trained models to database (not just in-memory), auto-reload latest on startup, model health check endpoint
-- [NEW] `backend/tasks/daily_retrain.py` — Scheduled retraining, compare new vs current, only deploy if better
-- [MODIFY] `backend/main.py` — Request logging middleware, rate limiting
+- [x] `backend/core/model_service.py` — `auto_reload_latest()` reloads checkpoint from DB on startup; `get_health()` for uptime + model metrics; `_started_at` / `_last_retrain_at` timestamps
+- [x] `backend/tasks/daily_retrain.py` — Champion/challenger retrain: trains new models, promotes only if challenger MSE < champion MSE × 0.99
+- [x] `backend/main.py` — HTTP request logging middleware (`log_requests`), `X-Response-Time-Ms` header, auto-reload on lifespan startup
+- [x] `backend/api/v1/system.py` — `GET /v1/system/health`: uptime, trained models, per-model DB versions, DB row counts
 
 **Frontend:**
-- [NEW] `frontend/app/dashboard/system/page.tsx` — System health dashboard: model status, DB stats, API latency, last retrain timestamp
-- [MODIFY] `frontend/lib/constants.ts` — Add System Health to nav
+- [x] `frontend/app/dashboard/system/page.tsx` — System health dashboard: uptime, player/stat/prediction counts, per-model status table (in-memory + DB version + MSE), last retrain info
+- [x] `frontend/lib/constants.ts` — "System Health" nav item (Activity icon) in System section
+- [x] `frontend/lib/api.ts` — `getSystemHealth()`, `SystemHealth` interface
 
 **DevOps:**
-- [NEW] `.github/workflows/ci.yml` — Python import checks, frontend build, unit tests
+- [x] `.github/workflows/ci.yml` — Backend import checks (main + system + daily_retrain), frontend `npx tsc --noEmit` TypeScript check, frontend build
+- [x] `.github/workflows/daily.yml` — Daily retrain job (champion/challenger) after data refresh
 
 ---
 
 ## Implementation Order
 
 ```
-Phase 2d (Next):    Priorities 7-9 — Model diversity + evaluation + pages
-Phase 2e (Final):   Priority 10    — Production hardening
+Phase 2d ✅:  Priorities 7-9 — Model diversity + evaluation + pages
+Phase 2e ✅:  Priority 10    — Production hardening
 ```
 
 ## Key Rule

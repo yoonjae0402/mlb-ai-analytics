@@ -24,3 +24,9 @@ jobs:
         env:
           MLB_DATABASE_URL_SYNC: ${{ secrets.DATABASE_URL }}
           MLB_DATABASE_URL: ${{ secrets.DATABASE_URL_ASYNC }}
+
+      - name: Retrain models (champion/challenger)
+        run: python3 -c "from backend.tasks.daily_retrain import retrain_if_better; import json; print(json.dumps(retrain_if_better(), indent=2))"
+        env:
+          MLB_DATABASE_URL_SYNC: ${{ secrets.DATABASE_URL }}
+          MLB_DATABASE_URL: ${{ secrets.DATABASE_URL_ASYNC }}

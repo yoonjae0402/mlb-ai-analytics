@@ -150,6 +150,9 @@ export const startTuning = (modelType: string, nTrials = 50) =>
   });
 export const getTuningStatus = () => fetchAPI<TuneStatus>("/v1/tune/status");
 
+// System health
+export const getSystemHealth = () => fetchAPI<SystemHealth>("/v1/system/health");
+
 // Scheduler
 export const getSchedulerStatus = () =>
   fetchAPI<SchedulerStatusResult>("/v1/scheduler/status");
@@ -388,6 +391,28 @@ export interface SchedulerStatusResult {
   last_run?: string;
   next_run?: string;
   last_error?: string;
+}
+
+export interface SystemHealth {
+  uptime_seconds: number;
+  trained_models: string[];
+  last_retrain_at: string | null;
+  model_metrics: Record<string, Record<string, number>>;
+  model_versions: Record<string, {
+    version: string;
+    trained_at: string | null;
+    val_mse: number | null;
+    val_r2: number | null;
+    checkpoint_path: string | null;
+  }>;
+  db: {
+    player_count: number;
+    stat_rows: number;
+    prediction_count: number;
+    game_count: number;
+  };
+  api_version: string;
+  timestamp: string;
 }
 
 // Game Detail & Predictions

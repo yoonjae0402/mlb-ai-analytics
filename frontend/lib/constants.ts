@@ -106,6 +106,7 @@ export const NAV_SECTIONS = [
     label: "System",
     items: [
       { name: "Architecture", path: "/architecture", icon: "FileCode" },
+      { name: "System Health", path: "/dashboard/system", icon: "Activity" },
     ],
   },
 ];

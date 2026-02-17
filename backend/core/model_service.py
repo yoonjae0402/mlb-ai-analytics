@@ -36,6 +36,9 @@ class ModelService:
         self.linear_model: Optional[TrainedModel] = None
         self.ensemble: Optional[EnsemblePredictor] = None
 
+        self._started_at: float = time.time()
+        self._last_retrain_at: Optional[float] = None
+
         self.training_status = {
             "is_training": False,
             "progress": 0.0,
@@ -213,6 +216,7 @@ class ModelService:
                     }
 
             self.training_status["progress"] = 100.0
+            self._last_retrain_at = time.time()
             return results
 
         finally:
@@ -449,6 +453,113 @@ class ModelService:
         if self.linear_model:
             names.append("linear")
         return names
+
+    def auto_reload_latest(self, db_session) -> dict:
+        """Load the latest saved checkpoint for each model type from disk.
+
+        Called on startup so models survive process restarts.
+        Returns a dict of {model_type: "loaded" | "not_found" | "error"}.
+        """
+        from backend.db.models import ModelVersion
+        from sqlalchemy import desc
+
+        status = {}
+        loaders = {
+            "lstm": self._load_lstm_checkpoint,
+            "xgboost": self._load_tree_checkpoint,
+            "lightgbm": self._load_tree_checkpoint,
+            "linear": self._load_tree_checkpoint,
+        }
+
+        for model_type in ["lstm", "xgboost", "lightgbm", "linear"]:
+            try:
+                row = (
+                    db_session.query(ModelVersion)
+                    .filter_by(model_type=model_type)
+                    .order_by(desc(ModelVersion.trained_at))
+                    .first()
+                )
+                if row is None or not row.checkpoint_path:
+                    status[model_type] = "not_found"
+                    continue
+
+                path = Path(row.checkpoint_path)
+                if not path.exists():
+                    status[model_type] = "not_found"
+                    continue
+
+                loader = loaders[model_type]
+                loader(model_type, path, row)
+                status[model_type] = "loaded"
+                logger.info(f"Auto-reloaded {model_type} from {path}")
+
+            except Exception as e:
+                logger.warning(f"Could not reload {model_type}: {e}")
+                status[model_type] = "error"
+
+        return status
+
+    def _load_lstm_checkpoint(self, model_type: str, path: Path, row) -> None:
+        from src.models.predictor import PlayerPredictor
+        from src.data.feature_builder import NUM_FEATURES
+        lstm = PlayerPredictor(input_size=NUM_FEATURES)
+        lstm.load(path)
+        metrics = {
+            "mse": row.val_mse or 0.0,
+            "r2": row.val_r2 or 0.0,
+        }
+        self.lstm_model = TrainedModel(
+            model=lstm,
+            metrics=metrics,
+            train_losses=[],
+            val_losses=[],
+            train_time=0.0,
+        )
+
+    def _load_tree_checkpoint(self, model_type: str, path: Path, row) -> None:
+        metrics = {
+            "mse": row.val_mse or 0.0,
+            "r2": row.val_r2 or 0.0,
+        }
+        if model_type == "xgboost":
+            from src.models.xgboost_model import XGBoostPredictor
+            model = XGBoostPredictor.load(path)
+            self.xgboost_model = TrainedModel(
+                model=model, metrics=metrics,
+                train_losses=[], val_losses=[], train_time=0.0,
+            )
+        elif model_type == "lightgbm":
+            from src.models.lightgbm_model import LightGBMPredictor
+            model = LightGBMPredictor.load(path)
+            self.lightgbm_model = TrainedModel(
+                model=model, metrics=metrics,
+                train_losses=[], val_losses=[], train_time=0.0,
+            )
+        elif model_type == "linear":
+            from src.models.linear_model import LinearPredictor
+            model = LinearPredictor.load(path)
+            self.linear_model = TrainedModel(
+                model=model, metrics=metrics,
+                train_losses=[], val_losses=[], train_time=0.0,
+            )
+
+    def get_health(self) -> dict:
+        """Return service health info (uptime, model status, last retrain)."""
+        import datetime
+        uptime_s = time.time() - self._started_at
+        return {
+            "uptime_seconds": round(uptime_s),
+            "trained_models": self.get_trained_model_names(),
+            "last_retrain_at": (
+                datetime.datetime.fromtimestamp(self._last_retrain_at).isoformat()
+                if self._last_retrain_at else None
+            ),
+            "model_metrics": {
+                k: getattr(self, f"{k}_model").metrics
+                for k in ["lstm", "xgboost", "lightgbm", "linear"]
+                if getattr(self, f"{k}_model") is not None
+            },
+        }
 
     def _get_trained_tree_models(self) -> list:
         out = []

@@ -35,8 +35,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
 
-      - name: Type check
-        run: python -c "import backend.main; print('Backend imports OK')"
+      - name: Import check
+        run: |
+          python -c "import backend.main; print('backend.main OK')"
+          python -c "import backend.api.v1.system; print('system endpoint OK')"
+          python -c "import backend.tasks.daily_retrain; print('daily_retrain OK')"
         env:
           MLB_DATABASE_URL: "postgresql+asyncpg://mlb:mlb@localhost:5432/mlb_analytics"
           MLB_DATABASE_URL_SYNC: "postgresql://mlb:mlb@localhost:5432/mlb_analytics"
@@ -54,6 +57,10 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: TypeScript check
+        working-directory: frontend
+        run: npx tsc --noEmit
 
       - name: Build
         working-directory: frontend

@@ -5,8 +5,29 @@ import { getDailyPredictions, getBestBets } from "@/lib/api";
 import type { DailyPrediction } from "@/lib/api";
 import PlayerHeadshot from "@/components/visuals/PlayerHeadshot";
 import {
-  TrendingUp, AlertCircle, ArrowUpDown, Zap,
+  TrendingUp, AlertCircle, ArrowUpDown, Zap, Download,
 } from "lucide-react";
+
+function exportToCSV(predictions: DailyPrediction[]) {
+  const headers = ["Player", "Team", "Hits", "HR", "RBI", "Walks", "Confidence"];
+  const rows = predictions.map((p) => [
+    p.player_name,
+    p.team ?? "",
+    p.predicted_hits.toFixed(2),
+    p.predicted_hr.toFixed(3),
+    p.predicted_rbi.toFixed(2),
+    p.predicted_walks.toFixed(2),
+    p.confidence != null ? `${Math.round(p.confidence * 100)}%` : "",
+  ]);
+  const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `mlb-predictions-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const SORT_OPTIONS = [
   { value: "predicted_hr", label: "Home Runs" },
@@ -85,6 +106,16 @@ export default function PredictionsPage() {
             All Predictions ({predictions.length})
           </h2>
           <div className="flex items-center gap-2">
+            {predictions.length > 0 && (
+              <button
+                onClick={() => exportToCSV(predictions)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-mlb-surface border border-mlb-border rounded-lg text-xs text-mlb-muted hover:text-mlb-text hover:border-mlb-blue/50 transition-colors"
+                title="Export to CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+                CSV
+              </button>
+            )}
             <ArrowUpDown className="w-3.5 h-3.5 text-mlb-muted" />
             <select
               value={sortBy}

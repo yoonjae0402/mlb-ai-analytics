@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { startTraining, getTrainCurves, getModelMetrics, type TrainConfig } from "@/lib/api";
+import { startTraining, getTrainCurves, getModelMetrics, getModelEvaluation, type TrainConfig } from "@/lib/api";
 import { useTrainingStatus } from "@/hooks/useTrainingStatus";
 import TrainControls from "@/components/train/TrainControls";
 import TrainProgress from "@/components/train/TrainProgress";
@@ -41,6 +41,13 @@ export default function ModelsPage() {
     queryKey: ["modelMetrics"],
     queryFn: getModelMetrics,
     refetchInterval: status?.is_training ? 2000 : false,
+  });
+
+  const { data: evaluation } = useQuery({
+    queryKey: ["modelEvaluation"],
+    queryFn: getModelEvaluation,
+    enabled: !!metrics,
+    retry: false,
   });
 
   const trainMutation = useMutation({
@@ -232,6 +239,124 @@ export default function ModelsPage() {
           {/* Per-Target MSE */}
           {perTargetData.length > 0 && (
             <BarComparison data={perTargetData} title="Per-Target MSE by Model" />
+          )}
+
+          {/* CV Results */}
+          {evaluation?.cv_results && Object.keys(evaluation.cv_results).length > 0 && (
+            <div className="bg-mlb-card border border-mlb-border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-mlb-border">
+                <p className="text-xs font-semibold text-mlb-muted uppercase tracking-wider">
+                  5-Fold Time-Series Cross-Validation
+                </p>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-mlb-border text-[11px] text-mlb-muted">
+                    <th className="text-left px-4 py-2">Model</th>
+                    <th className="text-right px-4 py-2">Mean MSE</th>
+                    <th className="text-right px-4 py-2">Std MSE</th>
+                    <th className="text-right px-4 py-2">Mean MAE</th>
+                    <th className="text-right px-4 py-2">Folds</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(evaluation.cv_results as Record<string, Record<string, number>>).map(
+                    ([k, cv]) => (
+                      <tr key={k} className="border-b border-mlb-border/50">
+                        <td className={`px-4 py-3 font-semibold ${MODEL_COLORS[k] ?? "text-mlb-text"}`}>
+                          {MODEL_LABELS[k] ?? k}
+                        </td>
+                        <td className="text-right px-4 py-3 font-mono text-mlb-text">
+                          {cv.mean_mse?.toFixed(4)}
+                        </td>
+                        <td className="text-right px-4 py-3 font-mono text-mlb-muted text-xs">
+                          ±{cv.std_mse?.toFixed(4)}
+                        </td>
+                        <td className="text-right px-4 py-3 font-mono text-mlb-text">
+                          {cv.mean_mae?.toFixed(4)}
+                        </td>
+                        <td className="text-right px-4 py-3 text-mlb-muted text-xs">
+                          {cv.n_folds}
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Does Model Beat Baseline? */}
+          {evaluation?.comparison && Object.keys(evaluation.comparison).length > 0 && (
+            <div className="bg-mlb-card border border-mlb-border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-mlb-border">
+                <p className="text-xs font-semibold text-mlb-muted uppercase tracking-wider">
+                  Does Model Beat Baseline?
+                </p>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-mlb-border text-mlb-muted">
+                    <th className="text-left px-4 py-2">Matchup</th>
+                    <th className="text-right px-3 py-2">Model MSE</th>
+                    <th className="text-right px-3 py-2">Baseline MSE</th>
+                    <th className="text-right px-3 py-2">Δ%</th>
+                    <th className="text-right px-3 py-2">p-value</th>
+                    <th className="text-right px-4 py-2">Verdict</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(
+                    evaluation.comparison as Record<string, Record<string, unknown>>
+                  )
+                    .filter(([k]) => k.includes("vs_season_average"))
+                    .map(([key, comp]) => {
+                      const wins = comp.model_wins as boolean;
+                      const sig = comp.significant as boolean;
+                      const pVal = comp.p_value as number | null;
+                      const imp = comp.improvement_pct as number;
+                      const modelName = key.split("_vs_")[0];
+                      return (
+                        <tr key={key} className="border-b border-mlb-border/50">
+                          <td className="px-4 py-2">
+                            <span className={MODEL_COLORS[modelName] ?? "text-mlb-text"}>
+                              {MODEL_LABELS[modelName] ?? modelName}
+                            </span>
+                            <span className="text-mlb-muted ml-1">vs Season Avg</span>
+                          </td>
+                          <td className="text-right px-3 py-2 font-mono text-mlb-text">
+                            {(comp.model_mse as number)?.toFixed(4)}
+                          </td>
+                          <td className="text-right px-3 py-2 font-mono text-mlb-muted">
+                            {(comp.baseline_mse as number)?.toFixed(4)}
+                          </td>
+                          <td className={`text-right px-3 py-2 font-mono font-semibold ${wins ? "text-mlb-green" : "text-mlb-red"}`}>
+                            {wins ? "+" : ""}{imp?.toFixed(1)}%
+                          </td>
+                          <td className="text-right px-3 py-2 text-mlb-muted font-mono">
+                            {pVal != null ? pVal.toFixed(3) : "—"}
+                          </td>
+                          <td className="text-right px-4 py-2">
+                            {wins ? (
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${sig ? "bg-mlb-green/20 text-mlb-green" : "bg-yellow-400/20 text-yellow-400"}`}>
+                                {sig ? "✓ Beats" : "Marginal"}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-mlb-red/20 text-mlb-red">
+                                ✗ Loses
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+              <p className="text-[10px] text-mlb-muted px-4 py-2">
+                "Beats" = statistically significant improvement (p&lt;0.05, Wilcoxon signed-rank test).
+                "Marginal" = better MSE but not significant.
+              </p>
+            </div>
           )}
         </div>
       </div>

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Home, BarChart3, Eye, Layers, Activity, Search, FileCode,
   Calendar, TrendingUp, Users, ChevronLeft, ChevronRight, Scale,
-  Trophy, Target,
+  Trophy, Target, Sliders,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_SECTIONS } from "@/lib/constants";
@@ -13,7 +13,7 @@ import { NAV_SECTIONS } from "@/lib/constants";
 const ICONS: Record<string, React.ElementType> = {
   Home, BarChart3, Eye, Layers, Activity, Search, FileCode,
   Calendar, TrendingUp, Users, ChevronLeft, ChevronRight, Scale,
-  Trophy, Target,
+  Trophy, Target, Sliders,
 };
 
 export default function ModernSidebar() {

@@ -69,23 +69,26 @@
 - [x] `frontend/components/charts/BarComparison.tsx` — Dynamic keys (any model set)
 - [x] `frontend/lib/api.ts` — TrainConfig with lightgbm/linear fields
 
-#### Priority 8 — Missing Frontend Pages
+#### Priority 8 — Missing Frontend Pages ✅
 **Impact: Medium — completes the product**
 
 **Frontend:**
-- [NEW] `frontend/app/dashboard/player/[playerId]/page.tsx` — Player detail: career stats, prediction history chart, stat sparklines, similar players
-- [NEW] `frontend/app/tuning/page.tsx` — Start/monitor Optuna hyperparameter tuning (API already exists: `POST /v1/tune`, `GET /v1/tune/status`)
-- [MODIFY] `frontend/app/dashboard/predictions/page.tsx` — Add CSV export button
-- [MODIFY] `frontend/lib/constants.ts` — Add nav links for new pages
+- [x] `frontend/app/dashboard/player/[playerId]/page.tsx` — Player detail: career stats table, prediction history line chart, season totals, sparkline stat averages
+- [x] `frontend/app/tuning/page.tsx` — Start/monitor Optuna HPT: model selector, trial count, progress bar, best params display
+- [x] `frontend/app/dashboard/predictions/page.tsx` — CSV export button (client-side, date-stamped filename)
+- [x] `frontend/lib/constants.ts` — Added "Hyperparameter Tuning" to Analysis nav section
+- [x] `frontend/components/layout/ModernSidebar.tsx` — Added Sliders icon
+- [x] `frontend/app/dashboard/players/page.tsx` — Player names now link to `/dashboard/player/[id]`
 
-#### Priority 9 — Evaluation Rigor
+#### Priority 9 — Evaluation Rigor ✅
 **Impact: Medium — proves analytical credibility**
 
 **Backend:**
-- [MODIFY] `backend/core/evaluation.py` — 5-fold time-series CV (expanding window), MAE/RMSE/MAPE/R² per target, statistical significance tests vs baselines, segment analysis by player type
+- [x] `backend/core/evaluation.py` — 5-fold time-series CV (expanding window), RMSE/MAPE/R² per target, Wilcoxon signed-rank significance tests vs baselines, bootstrap 95% CI
 
 **Frontend:**
-- [MODIFY] `frontend/app/models/page.tsx` — Show CV results, per-target metric comparison, "Does Model Beat Baseline?" verdict with p-value
+- [x] `frontend/app/models/page.tsx` — CV results table (mean/std MSE per fold), "Does Model Beat Baseline?" verdict table with p-value, Beats/Marginal/Loses badges
+- [x] `frontend/lib/api.ts` — EvaluationResult extended with cv_results, lightgbm, linear fields
 
 ---
 

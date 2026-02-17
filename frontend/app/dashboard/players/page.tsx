@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { getPlayerIndex, getTeams } from "@/lib/api";
 import type { Player } from "@/lib/api";
@@ -158,16 +159,19 @@ export default function PlayersPage() {
                   className="border-b border-mlb-border/50 hover:bg-mlb-surface/50 transition-colors"
                 >
                   <td className="px-4 py-2">
-                    <div className="flex items-center gap-2.5">
+                    <Link
+                      href={`/dashboard/player/${player.id}`}
+                      className="flex items-center gap-2.5 group"
+                    >
                       <PlayerHeadshot
                         url={player.headshot_url}
                         name={player.name}
                         size="sm"
                       />
-                      <span className="text-sm font-medium text-mlb-text">
+                      <span className="text-sm font-medium text-mlb-text group-hover:text-mlb-blue transition-colors">
                         {player.name}
                       </span>
-                    </div>
+                    </Link>
                   </td>
                   <td className="px-3 py-2 text-xs text-mlb-muted">
                     {player.team || "—"}

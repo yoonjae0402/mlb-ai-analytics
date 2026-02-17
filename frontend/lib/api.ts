@@ -366,8 +366,11 @@ export interface DataStatus {
 export interface EvaluationResult {
   lstm?: Record<string, any>;
   xgboost?: Record<string, any>;
+  lightgbm?: Record<string, any>;
+  linear?: Record<string, any>;
   baselines?: Record<string, any>;
   comparison?: Record<string, any>;
+  cv_results?: Record<string, any>;
 }
 
 export interface TuneStatus {

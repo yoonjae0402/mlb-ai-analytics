@@ -99,6 +99,7 @@ export const NAV_SECTIONS = [
       { name: "Model Comparison", path: "/models", icon: "BarChart3" },
       { name: "Attention Viz", path: "/attention", icon: "Eye" },
       { name: "Ensemble Lab", path: "/ensemble", icon: "Layers" },
+      { name: "Hyperparameter Tuning", path: "/tuning", icon: "Sliders" },
     ],
   },
   {

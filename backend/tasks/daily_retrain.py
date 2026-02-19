@@ -90,6 +90,9 @@ def retrain_if_better(config: dict | None = None) -> dict:
                 if challenger_model is not None:
                     setattr(svc, f"{model_type}_model", challenger_model)
                     promoted_any = True
+                
+                # Persist to DB so it survives restart
+                _save_promoted_model_to_db(session, model_type, result, config)
             else:
                 logger.info(
                     f"Keeping champion {model_type}: {champion_val_mse:.4f} <= {challenger_val_mse:.4f}"
@@ -97,6 +100,7 @@ def retrain_if_better(config: dict | None = None) -> dict:
 
         if promoted_any:
             svc._last_retrain_at = time.time()
+
             logger.info("Daily retrain: at least one model promoted.")
         else:
             logger.info("Daily retrain: champion models retained (no improvement).")
@@ -110,3 +114,27 @@ def retrain_if_better(config: dict | None = None) -> dict:
 
     finally:
         session.close()
+
+
+def _save_promoted_model_to_db(session, model_type: str, result: dict, config: dict):
+    """Save the promoted model version to the database."""
+    from backend.db.models import ModelVersion
+
+    try:
+        mv = ModelVersion(
+            model_type=model_type,
+            version=result["version"],
+            hyperparams_json=config,
+            train_mse=result["metrics"].get("final_train_loss"),
+            val_mse=result["metrics"].get("mse"),
+            train_r2=None,
+            val_r2=result["metrics"].get("r2"),
+            checkpoint_path=result["checkpoint"],
+        )
+        session.add(mv)
+        session.commit()
+        logger.info(f"Persisted promoted {model_type} version {result['version']} to DB.")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Failed to persist promoted {model_type}: {e}")
+

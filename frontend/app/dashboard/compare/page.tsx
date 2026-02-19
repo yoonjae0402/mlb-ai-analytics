@@ -20,8 +20,8 @@ import {
 
 const COMPARE_STATS = [
   { key: "batting_avg", seasonKey: "batting_avg" },
-  { key: "obp", seasonKey: null },
-  { key: "slg", seasonKey: null },
+  { key: "obp", seasonKey: "obp" },
+  { key: "slg", seasonKey: "slg" },
   { key: "hits", seasonKey: "hits" },
   { key: "home_runs", seasonKey: "home_runs" },
   { key: "rbi", seasonKey: "rbi" },

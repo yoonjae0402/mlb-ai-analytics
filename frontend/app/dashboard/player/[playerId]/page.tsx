@@ -109,7 +109,7 @@ export default function PlayerDetailPage() {
         {season_totals && (
           <div className="hidden md:grid grid-cols-3 gap-4 text-center">
             {[
-              { key: "avg", label: "AVG", format: (v: number) => v?.toFixed(3) },
+              { key: "batting_avg", label: "AVG", format: (v: number) => v?.toFixed(3) },
               { key: "obp", label: "OBP", format: (v: number) => v?.toFixed(3) },
               { key: "slg", label: "SLG", format: (v: number) => v?.toFixed(3) },
             ].map(({ key, label, format }) => (

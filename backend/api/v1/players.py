@@ -132,14 +132,26 @@ async def compare_players(
         season_totals = None
         if totals and totals.games:
             ab = totals.at_bats or 1
+            h = totals.hits or 0
+            bb = totals.walks or 0
+            hr = totals.home_runs or 0
+            # OBP = (H + BB) / (AB + BB)
+            obp_denom = ab + bb if ab > 0 else 1
+            obp = round((h + bb) / obp_denom, 3)
+            # SLG approximation (we don't have 2B/3B, so use H + HR as a proxy for total bases)
+            # Rough estimate: total_bases ≈ H + HR (assumes extra bases from HR)
+            slg = round((h + hr) / ab, 3) if ab > 0 else 0.0
+
             season_totals = {
                 "games": totals.games,
-                "hits": totals.hits or 0,
-                "home_runs": totals.home_runs or 0,
+                "hits": h,
+                "home_runs": hr,
                 "rbi": totals.rbi or 0,
-                "walks": totals.walks or 0,
-                "at_bats": totals.at_bats or 0,
-                "batting_avg": round((totals.hits or 0) / ab, 3),
+                "walks": bb,
+                "at_bats": ab,
+                "batting_avg": round(h / ab, 3),
+                "obp": obp,
+                "slg": slg,
             }
 
         players_detail.append(PlayerDetail(
@@ -193,14 +205,26 @@ async def get_player(player_id: int, db: AsyncSession = Depends(get_db)):
     season_totals = None
     if totals and totals.games:
         ab = totals.at_bats or 1
+        h = totals.hits or 0
+        bb = totals.walks or 0
+        hr = totals.home_runs or 0
+        # OBP = (H + BB) / (AB + BB)
+        obp_denom = ab + bb if ab > 0 else 1
+        obp = round((h + bb) / obp_denom, 3)
+        # SLG approximation (we don't have 2B/3B, so use H + HR as a proxy for total bases)
+        # Rough estimate: total_bases ≈ H + HR (assumes extra bases from HR)
+        slg = round((h + hr) / ab, 3) if ab > 0 else 0.0
+
         season_totals = {
             "games": totals.games,
-            "hits": totals.hits or 0,
-            "home_runs": totals.home_runs or 0,
+            "hits": h,
+            "home_runs": hr,
             "rbi": totals.rbi or 0,
-            "walks": totals.walks or 0,
-            "at_bats": totals.at_bats or 0,
-            "batting_avg": round((totals.hits or 0) / ab, 3),
+            "walks": bb,
+            "at_bats": ab,
+            "batting_avg": round(h / ab, 3),
+            "obp": obp,
+            "slg": slg,
         }
 
     return PlayerDetail(

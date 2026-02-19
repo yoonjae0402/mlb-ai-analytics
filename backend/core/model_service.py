@@ -509,6 +509,7 @@ class ModelService:
             "r2": row.val_r2 or 0.0,
         }
         self.lstm_model = TrainedModel(
+            name="LSTM",
             model=lstm,
             metrics=metrics,
             train_losses=[],
@@ -525,6 +526,7 @@ class ModelService:
             from src.models.xgboost_model import XGBoostPredictor
             model = XGBoostPredictor.load(path)
             self.xgboost_model = TrainedModel(
+                name="XGBoost",
                 model=model, metrics=metrics,
                 train_losses=[], val_losses=[], train_time=0.0,
             )
@@ -532,6 +534,7 @@ class ModelService:
             from src.models.lightgbm_model import LightGBMPredictor
             model = LightGBMPredictor.load(path)
             self.lightgbm_model = TrainedModel(
+                name="LightGBM",
                 model=model, metrics=metrics,
                 train_losses=[], val_losses=[], train_time=0.0,
             )
@@ -539,6 +542,7 @@ class ModelService:
             from src.models.linear_model import LinearPredictor
             model = LinearPredictor.load(path)
             self.linear_model = TrainedModel(
+                name="Linear",
                 model=model, metrics=metrics,
                 train_losses=[], val_losses=[], train_time=0.0,
             )

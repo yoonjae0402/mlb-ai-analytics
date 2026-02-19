@@ -39,40 +39,66 @@ async def pitcher_stats(
     pitcher_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get pitcher profile with aggregated stats."""
+    """Get pitcher profile with computed ERA, WHIP, K/9, BB/9 and season totals.
+
+    Response schema:
+        {
+            id, mlb_id, name, team, throws, headshot_url,
+            stats: {
+                total_games, total_innings, total_strikeouts,
+                total_walks, total_earned_runs,
+                era, whip, k_per_9, bb_per_9
+            }
+        }
+    """
     result = await db.execute(select(Player).where(Player.id == pitcher_id))
     player = result.scalar_one_or_none()
     if not player:
         raise HTTPException(404, "Pitcher not found")
 
-    # Get recent game stats
-    stats_q = await db.execute(
-        select(PlayerStat)
+    # Aggregate pitching stats from player_stats rows
+    agg_result = await db.execute(
+        select(
+            func.count(PlayerStat.id).label("total_games"),
+            func.coalesce(func.sum(PlayerStat.innings_pitched), 0.0).label("total_innings"),
+            func.coalesce(func.sum(PlayerStat.strikeouts), 0).label("total_strikeouts"),
+            func.coalesce(func.sum(PlayerStat.walks), 0).label("total_walks"),
+            func.coalesce(func.sum(PlayerStat.earned_runs), 0).label("total_earned_runs"),
+            func.coalesce(func.sum(PlayerStat.hits), 0).label("total_hits_allowed"),
+        )
         .where(PlayerStat.player_id == pitcher_id)
-        .order_by(PlayerStat.game_date.desc())
-        .limit(30)
     )
-    stats = stats_q.scalars().all()
+    agg = agg_result.one_or_none()
 
-    # Aggregate
-    games_pitched = len(stats)
-    total_k = sum(s.strikeouts or 0 for s in stats)
-    total_bb = sum(s.walks or 0 for s in stats)
-    total_hits_allowed = sum(s.hits or 0 for s in stats)
+    total_games = agg.total_games if agg else 0
+    total_innings = float(agg.total_innings or 0) if agg else 0.0
+    total_strikeouts = int(agg.total_strikeouts or 0) if agg else 0
+    total_walks = int(agg.total_walks or 0) if agg else 0
+    total_earned_runs = int(agg.total_earned_runs or 0) if agg else 0
+    total_hits_allowed = int(agg.total_hits_allowed or 0) if agg else 0
+
+    # Compute rate stats — guard against division by zero
+    era = round(total_earned_runs / total_innings * 9, 2) if total_innings > 0 else None
+    whip = round((total_walks + total_hits_allowed) / total_innings, 3) if total_innings > 0 else None
+    k_per_9 = round(total_strikeouts / total_innings * 9, 1) if total_innings > 0 else None
+    bb_per_9 = round(total_walks / total_innings * 9, 1) if total_innings > 0 else None
 
     return {
-        "player": {
-            "id": player.id,
-            "mlb_id": player.mlb_id,
-            "name": player.name,
-            "team": player.team,
-            "throws": player.throws,
-            "headshot_url": player.headshot_url,
+        "id": player.id,
+        "mlb_id": player.mlb_id,
+        "name": player.name,
+        "team": player.team,
+        "throws": player.throws,
+        "headshot_url": player.headshot_url,
+        "stats": {
+            "total_games": total_games,
+            "total_innings": round(total_innings, 1),
+            "total_strikeouts": total_strikeouts,
+            "total_walks": total_walks,
+            "total_earned_runs": total_earned_runs,
+            "era": era,
+            "whip": whip,
+            "k_per_9": k_per_9,
+            "bb_per_9": bb_per_9,
         },
-        "games_pitched": games_pitched,
-        "total_strikeouts": total_k,
-        "total_walks": total_bb,
-        "total_hits_allowed": total_hits_allowed,
-        "k_per_game": round(total_k / max(games_pitched, 1), 2),
-        "bb_per_game": round(total_bb / max(games_pitched, 1), 2),
     }

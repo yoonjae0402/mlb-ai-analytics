@@ -13,8 +13,8 @@ const techStack = [
 
 const pipeline = [
   { icon: Database, label: "Data Sources", desc: "pybaseball + MLB Stats API", color: "text-mlb-blue" },
-  { icon: Zap, label: "Feature Engineering", desc: "22 features: Statcast + pitcher matchup + derived", color: "text-yellow-400" },
-  { icon: Brain, label: "Models", desc: "BiLSTM + Attention, XGBoost, Ensemble", color: "text-mlb-red" },
+  { icon: Zap, label: "Feature Engineering", desc: "26 features: Statcast + pitcher matchup + derived", color: "text-yellow-400" },
+  { icon: Brain, label: "Models", desc: "BiLSTM + Attention, XGBoost, LightGBM, Linear", color: "text-mlb-red" },
   { icon: Server, label: "FastAPI", desc: "REST API with async endpoints", color: "text-mlb-green" },
   { icon: Monitor, label: "Next.js", desc: "Interactive dashboard + visualizations", color: "text-purple-400" },
 ];

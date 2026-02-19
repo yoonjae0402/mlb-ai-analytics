@@ -378,9 +378,10 @@ def _build_pitcher_lookup(session, seasons: list[int] = None) -> dict:
 
 
 def _build_game_lookup(session, seasons: list[int] = None) -> dict:
-    """Build lookup mapping (team, date) -> is_home (bool).
+    """Build lookup mapping (team, date) -> {is_home, opponent}.
 
-    Returns dict mapping (team_name, game_date) -> True if home, False if away.
+    Returns dict mapping (team_name, game_date) -> {"is_home": bool, "opponent": str}.
+    Storing the actual opponent enables correct pitcher stats matching downstream.
     """
     try:
         from backend.db.models import Game
@@ -392,10 +393,13 @@ def _build_game_lookup(session, seasons: list[int] = None) -> dict:
 
         lookup = {}
         for gdate, home, away in query.all():
-            if home:
-                lookup[(home, gdate)] = True
-            if away:
-                lookup[(away, gdate)] = False
+            if home and away:
+                lookup[(home, gdate)] = {"is_home": True, "opponent": away}
+                lookup[(away, gdate)] = {"is_home": False, "opponent": home}
+            elif home:
+                lookup[(home, gdate)] = {"is_home": True, "opponent": None}
+            elif away:
+                lookup[(away, gdate)] = {"is_home": False, "opponent": None}
         logger.info(f"Built game lookup: {len(lookup)} team-date entries")
         return lookup
     except Exception as e:
@@ -494,46 +498,42 @@ def _stats_to_dataframe(stats: list, pitcher_lookup: dict = None,
         babip = (hits - hr) / babip_denom if babip_denom > 0 else LEAGUE_DEFAULTS["babip"]
         babip = max(0.0, min(babip, 1.0))  # Clamp to [0, 1]
 
-        # Home/away from game lookup
+        # Home/away and opponent from game lookup
         batter_player = getattr(s, 'player', None)
         batter_team = batter_player.team if batter_player else None
         is_home = LEAGUE_DEFAULTS["is_home"]
+        opp_team = None  # actual opponent team name for this game
+
         if game_lookup and batter_team:
-            is_home_val = game_lookup.get((batter_team, s.game_date))
-            if is_home_val is not None:
-                is_home = 1.0 if is_home_val else 0.0
+            game_entry = game_lookup.get((batter_team, s.game_date))
+            if game_entry is not None:
+                is_home = 1.0 if game_entry["is_home"] else 0.0
+                opp_team = game_entry.get("opponent")
 
         # Opponent quality (opponent team win %)
         opp_quality = LEAGUE_DEFAULTS["opp_quality"]
+        if team_quality and opp_team and opp_team in team_quality:
+            opp_quality = team_quality[opp_team]
 
-        # Pitcher matchup features (best-effort from lookup)
+        # Pitcher matchup features — look up the ACTUAL opponent pitcher stats
         opp_era = LEAGUE_DEFAULTS["opp_era"]
         opp_whip = LEAGUE_DEFAULTS["opp_whip"]
         opp_k_per_9 = LEAGUE_DEFAULTS["opp_k_per_9"]
         opp_bb_per_9 = LEAGUE_DEFAULTS["opp_bb_per_9"]
         opp_handedness_adv = LEAGUE_DEFAULTS["opp_handedness_adv"]
 
-        if pitcher_lookup:
-            # Match opposing pitcher data by scanning all teams on the same date
-            for (team, pdate), p_stats in pitcher_lookup.items():
-                if pdate == s.game_date:
-                    # Skip same team (we want opponent pitchers)
-                    if batter_team and team == batter_team:
-                        continue
-                    # Found an opposing team's pitching data for this date
-                    opp_era = p_stats.get("era", opp_era)
-                    opp_whip = p_stats.get("whip", opp_whip)
-                    opp_k_per_9 = p_stats.get("k_per_9", opp_k_per_9)
-                    opp_bb_per_9 = p_stats.get("bb_per_9", opp_bb_per_9)
-                    # Handedness advantage
-                    batter_bats = batter_player.bats if batter_player else ''
-                    pitcher_throws = p_stats.get("throws", "R")
-                    if batter_bats and pitcher_throws:
-                        opp_handedness_adv = 1.0 if batter_bats != pitcher_throws else -0.5
-                    # Opponent quality from team standings
-                    if team_quality and team in team_quality:
-                        opp_quality = team_quality[team]
-                    break  # Use first opposing team match
+        if pitcher_lookup and opp_team:
+            # Direct lookup by (opponent_team, game_date) — O(1) and correct
+            p_stats = pitcher_lookup.get((opp_team, s.game_date))
+            if p_stats:
+                opp_era = p_stats.get("era", opp_era)
+                opp_whip = p_stats.get("whip", opp_whip)
+                opp_k_per_9 = p_stats.get("k_per_9", opp_k_per_9)
+                opp_bb_per_9 = p_stats.get("bb_per_9", opp_bb_per_9)
+                batter_bats = batter_player.bats if batter_player else ""
+                pitcher_throws = p_stats.get("throws", "R")
+                if batter_bats and pitcher_throws:
+                    opp_handedness_adv = 1.0 if batter_bats != pitcher_throws else -0.5
 
         records.append({
             "game_date": s.game_date,

@@ -47,67 +47,44 @@
 
 ## Remaining Work
 
-### Phase 2d — Model Diversity + Evaluation + Pages (Priorities 7-9)
+### Phase 2d — Model Diversity + Evaluation + Pages (Priorities 7-9) ✅
+- [x] **LightGBM & Linear Models**: Added as alternatives to LSTM/XGBoost
+- [x] **Ensemble**: Weighted averaging and stacking strategies
+- [x] **Evaluation**: 5-fold CV, Wilcoxon tests, metrics (RMSE, R2, MAPE)
+- [x] **Model Comparison UI**: Pages to compare models and visualize ensemble weights
 
-#### Priority 7 — Model Diversity & Ensemble ✅
-**Impact: Medium — more diverse models = better ensemble**
-
-**Backend:**
-- [x] `src/models/lightgbm_model.py` — LightGBM regressor with same feature flattening as XGBoost
-- [x] `src/models/linear_model.py` — Ridge/Lasso regression baseline
-- [x] `src/models/ensemble.py` — Support 3+ base models, `optimize_weights()` via grid search
-- [x] `src/models/model_registry.py` — `train_lightgbm()` and `train_linear()` functions
-- [x] `backend/core/model_service.py` — lightgbm/linear support, N-model ensemble, `get_trained_model_names()`
-- [x] `backend/api/v1/train.py` — saves lightgbm/linear to DB
-- [x] `backend/api/v1/schemas.py` — TrainRequest: `train_lightgbm`, `train_linear` flags; TrainResult/TrainCurves: all 4 models
-- [x] `backend/api/v1/evaluation.py` — returns lightgbm/linear metrics
-- [x] `backend/requirements.txt` — lightgbm>=4.1.0
-
-**Frontend:**
-- [x] `frontend/app/models/page.tsx` — Model comparison table (LSTM, XGBoost, LightGBM, Linear), BEST badge, checkboxes to enable extra models
-- [x] `frontend/app/ensemble/page.tsx` — Per-model weight sliders, normalized blend bar, N-model support
-- [x] `frontend/components/charts/BarComparison.tsx` — Dynamic keys (any model set)
-- [x] `frontend/lib/api.ts` — TrainConfig with lightgbm/linear fields
-
-#### Priority 8 — Missing Frontend Pages ✅
-**Impact: Medium — completes the product**
-
-**Frontend:**
-- [x] `frontend/app/dashboard/player/[playerId]/page.tsx` — Player detail: career stats table, prediction history line chart, season totals, sparkline stat averages
-- [x] `frontend/app/tuning/page.tsx` — Start/monitor Optuna HPT: model selector, trial count, progress bar, best params display
-- [x] `frontend/app/dashboard/predictions/page.tsx` — CSV export button (client-side, date-stamped filename)
-- [x] `frontend/lib/constants.ts` — Added "Hyperparameter Tuning" to Analysis nav section
-- [x] `frontend/components/layout/ModernSidebar.tsx` — Added Sliders icon
-- [x] `frontend/app/dashboard/players/page.tsx` — Player names now link to `/dashboard/player/[id]`
-
-#### Priority 9 — Evaluation Rigor ✅
-**Impact: Medium — proves analytical credibility**
-
-**Backend:**
-- [x] `backend/core/evaluation.py` — 5-fold time-series CV (expanding window), RMSE/MAPE/R² per target, Wilcoxon signed-rank significance tests vs baselines, bootstrap 95% CI
-
-**Frontend:**
-- [x] `frontend/app/models/page.tsx` — CV results table (mean/std MSE per fold), "Does Model Beat Baseline?" verdict table with p-value, Beats/Marginal/Loses badges
-- [x] `frontend/lib/api.ts` — EvaluationResult extended with cv_results, lightgbm, linear fields
+### Phase 2e — Production Hardening (Priority 10) ✅
+- [x] **Daily Retrain**: Champion/Challenger logic with `daily_retrain.py` (Fixed persistence issue)
+- [x] **System Health**: Health check endpoint & dashboard
+- [x] **Logging**: Middleware for request logging
+- [x] **CI/CD**: GitHub workflows for testing and daily retraining
 
 ---
 
-### Phase 2e — Production Hardening (Priority 10) ✅
+## Phase 3 — Real-World Value & Monetization (New)
 
-**Backend:**
-- [x] `backend/core/model_service.py` — `auto_reload_latest()` reloads checkpoint from DB on startup; `get_health()` for uptime + model metrics; `_started_at` / `_last_retrain_at` timestamps
-- [x] `backend/tasks/daily_retrain.py` — Champion/challenger retrain: trains new models, promotes only if challenger MSE < champion MSE × 0.99
-- [x] `backend/main.py` — HTTP request logging middleware (`log_requests`), `X-Response-Time-Ms` header, auto-reload on lifespan startup
-- [x] `backend/api/v1/system.py` — `GET /v1/system/health`: uptime, trained models, per-model DB versions, DB row counts
+### Phase 3a — Betting Intelligence & Odds
+- [ ] **Odds API Integration**: Fetch live odds from major sportsbooks (DraftKings, FanDuel)
+- [ ] **EV Calculation**: Compute Expected Value (EV) = (Model Prob * Decimal Odds) - 1
+- [ ] **Value Dashboard**: `/dashboard/betting` showing high-EV bets
+- [ ] **Bankroll Management**: Kelly Criterion suggestions based on confidence and bankroll size
 
-**Frontend:**
-- [x] `frontend/app/dashboard/system/page.tsx` — System health dashboard: uptime, player/stat/prediction counts, per-model status table (in-memory + DB version + MSE), last retrain info
-- [x] `frontend/lib/constants.ts` — "System Health" nav item (Activity icon) in System section
-- [x] `frontend/lib/api.ts` — `getSystemHealth()`, `SystemHealth` interface
+### Phase 3b — User Personalization & Alerts
+- [ ] **Authentication**: NextAuth.js (Google/GitHub login)
+- [ ] **User Profile**: Saved preferences, bankroll settings
+- [ ] **Favorites**: "Star" players/teams to track
+- [ ] **Alert System**: Email/Push notifications when:
+    -   A "Value Bet" > 10% EV is found
+    -   A favorite player is predicted to hit a HR
+    -   A favorite team's win probability shifts significantly
 
-**DevOps:**
-- [x] `.github/workflows/ci.yml` — Backend import checks (main + system + daily_retrain), frontend `npx tsc --noEmit` TypeScript check, frontend build
-- [x] `.github/workflows/daily.yml` — Daily retrain job (champion/challenger) after data refresh
+### Phase 3c — Advanced Sabermetrics & Refinement
+- [ ] **Advanced Pitching**: FIP (Fielding Independent Pitching), xFIP, K-BB%
+- [ ] **Advanced Batting**: wRC+ (Weighted Runs Created Plus), ISO (Isolated Power)
+- [ ] **WAR Proxy**: Simplified Wins Above Replacement calculation
+- [ ] **Statcast Integration**: Visualize Exit Velo / Launch Angle stability over time
+- [ ] **True Time-Series CV**: Refactor evaluation to retrain models on expanding windows (fix current data leakage)
+
 
 ---
 
@@ -116,6 +93,9 @@
 ```
 Phase 2d ✅:  Priorities 7-9 — Model diversity + evaluation + pages
 Phase 2e ✅:  Priority 10    — Production hardening
+Phase 3a   :  Betting Intelligence (Highest Value)
+Phase 3b   :  User Personalization
+Phase 3c   :  Advanced Sabermetrics
 ```
 
 ## Key Rule
@@ -127,7 +107,7 @@ Phase 2e ✅:  Priority 10    — Production hardening
 ## Success Metrics
 - **Model MSE drops >15%** after pitcher features + scaling (DONE - Phase 2a)
 - **Game-level win probability** achieves >55% accuracy (DONE - Phase 2b)
-- **Prediction accuracy page** shows calibration within 10% (DONE - Phase 2b)
-- **Uncertainty intervals** cover actual values >80% of the time (DONE - Phase 2c)
-- **Ensemble with 4+ models** outperforms best single model (Phase 2d)
-- **Cross-validation R²** consistently >0.15 for hits prediction (Phase 2d)
+- **Ensemble with 4+ models** outperforms best single model (DONE - Phase 2d)
+- **Positive EV Returns**: Simulated betting portfolio yields >5% ROI (Phase 3a)
+- **User Engagement**: value-added features like Alerts drive daily active usage (Phase 3b)
+

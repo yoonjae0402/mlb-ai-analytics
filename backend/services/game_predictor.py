@@ -100,15 +100,17 @@ def _get_team_players_with_predictions(
 def _estimate_runs_from_predictions(player_preds: list[dict]) -> float:
     """Estimate team runs from individual player predictions.
 
-    Uses a weighted combination:
-    - Predicted hits contribute to run scoring
-    - HRs are direct runs (at least 1 run each)
+    Uses a blended model:
+    - Predicted hits, HR, walks contribute to run scoring
     - RBI is the most direct run measure
-    - Walks contribute to baserunners
+    - Missing batters filled with league-average slot contribution (LEAGUE_AVG_RUNS / 9)
+      to prevent skew when teams have different prediction coverage.
 
-    Simple model: projected_runs ≈ 0.5 * total_hits + 1.4 * total_hr + 0.3 * total_walks
-    Calibrated to produce ~4-5 runs per game for an average lineup of 9 batters.
+    Calibrated to produce ~4-5 runs per game for a full lineup of 9 batters.
     """
+    LINEUP_SIZE = 9
+    league_avg_per_slot = LEAGUE_AVG_RUNS / LINEUP_SIZE  # ~0.5 runs per batter slot
+
     if not player_preds:
         return LEAGUE_AVG_RUNS
 
@@ -117,21 +119,20 @@ def _estimate_runs_from_predictions(player_preds: list[dict]) -> float:
     total_walks = sum(p["predicted_walks"] for p in player_preds)
     total_rbi = sum(p["predicted_rbi"] for p in player_preds)
 
-    # Primary method: use RBI as the core run estimate
-    # RBI directly measures runs produced, but double-counts HR
-    # Blend RBI with a component model for robustness
+    # Primary method: blend RBI with a component model
+    # component model: 0.5 * hits + 1.4 * hr + 0.3 * walks
+    # calibrated so that league-avg player (1 H, 0.1 HR, 0.35 BB) → ~0.5 runs/slot
     component_runs = 0.5 * total_hits + 1.4 * total_hr + 0.3 * total_walks
     rbi_runs = total_rbi
 
     # Weighted blend: 60% RBI-based, 40% component-based
-    estimated = 0.6 * rbi_runs + 0.4 * component_runs
+    estimated_from_preds = 0.6 * rbi_runs + 0.4 * component_runs
 
-    # Scale by lineup coverage (if we only have predictions for 5 of 9 batters)
-    n_batters = len(player_preds)
-    if n_batters < 9:
-        # Extrapolate to full lineup, but conservatively
-        scale = 9.0 / max(n_batters, 1)
-        estimated *= min(scale, 2.0)  # Cap at 2x to avoid wild extrapolations
+    # Fill missing lineup slots with league-average contribution.
+    # This prevents skew when one team has 3 players predicted and the other has 9.
+    n_with_preds = len(player_preds)
+    n_missing = max(0, LINEUP_SIZE - n_with_preds)
+    estimated = estimated_from_preds + n_missing * league_avg_per_slot
 
     return round(estimated, 2)
 

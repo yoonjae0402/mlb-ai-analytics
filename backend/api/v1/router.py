@@ -6,6 +6,7 @@ from backend.api.v1 import (
     train, predict, players, attention, ensemble, games,
     evaluation, data, tuning, schedule, predictions_hub,
     teams, scheduler_routes, baseline, pitchers, accuracy, system,
+    standings,
 )
 
 router = APIRouter(prefix="/v1")
@@ -27,3 +28,4 @@ router.include_router(baseline.router)
 router.include_router(pitchers.router)
 router.include_router(accuracy.router)
 router.include_router(system.router)
+router.include_router(standings.router)

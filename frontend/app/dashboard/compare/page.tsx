@@ -5,8 +5,12 @@ import { usePlayerSearch } from "@/hooks/usePlayerSearch";
 import { comparePlayers } from "@/lib/api";
 import type { Player, PlayerDetail } from "@/lib/api";
 import PlayerHeadshot from "@/components/visuals/PlayerHeadshot";
+import PercentileBar from "@/components/ui/PercentileBar";
 import { Search, Scale, X, AlertCircle } from "lucide-react";
-import { getContextLevel, STAT_DISPLAY, formatStatValue } from "@/lib/stat-helpers";
+import { getContextLevel, getPercentile, STAT_DISPLAY, formatStatValue } from "@/lib/stat-helpers";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 
 const COMPARE_STATS = [
   { key: "batting_avg", tip: "Hits divided by at-bats" },
@@ -104,7 +108,10 @@ export default function ComparePage() {
 
       {/* Comparison Table */}
       {canCompare && compareData && compareData.players.length === 2 && (
-        <ComparisonTable player1={compareData.players[0]} player2={compareData.players[1]} />
+        <>
+          <ComparisonTable player1={compareData.players[0]} player2={compareData.players[1]} />
+          <TrendChart player1={compareData.players[0]} player2={compareData.players[1]} />
+        </>
       )}
 
       {/* Empty state */}
@@ -268,26 +275,27 @@ function ComparisonTable({ player1, player2 }: { player1: PlayerDetail; player2:
           >
             {/* P1 value */}
             <div
-              className="p-3 flex items-center justify-between"
+              className="p-3 flex flex-col gap-1.5"
               style={{
                 borderRight: "1px solid var(--color-border)",
                 background: winner === 1 ? "rgba(94,252,141,0.06)" : "transparent",
               }}
             >
-              <div>
+              <div className="flex items-center justify-between">
                 <p
                   className="text-sm font-bold tabular-nums"
                   style={{ color: winner === 1 ? "var(--color-primary)" : "var(--color-text)" }}
                 >
                   {formatStatValue(key, val1)}
                 </p>
+                <span
+                  className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                  style={{ background: ctx1.bg, color: ctx1.color }}
+                >
+                  {ctx1.label}
+                </span>
               </div>
-              <span
-                className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
-                style={{ background: ctx1.bg, color: ctx1.color }}
-              >
-                {ctx1.label}
-              </span>
+              <PercentileBar stat={key} value={val1} showLabel={true} />
             </div>
 
             {/* Stat name */}
@@ -310,24 +318,27 @@ function ComparisonTable({ player1, player2 }: { player1: PlayerDetail; player2:
 
             {/* P2 value */}
             <div
-              className="p-3 flex items-center justify-between"
+              className="p-3 flex flex-col gap-1.5"
               style={{
                 borderLeft: "1px solid var(--color-border)",
                 background: winner === 2 ? "rgba(94,252,141,0.06)" : "transparent",
               }}
             >
-              <span
-                className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
-                style={{ background: ctx2.bg, color: ctx2.color }}
-              >
-                {ctx2.label}
-              </span>
-              <p
-                className="text-sm font-bold tabular-nums text-right"
-                style={{ color: winner === 2 ? "var(--color-primary)" : "var(--color-text)" }}
-              >
-                {formatStatValue(key, val2)}
-              </p>
+              <div className="flex items-center justify-between">
+                <span
+                  className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                  style={{ background: ctx2.bg, color: ctx2.color }}
+                >
+                  {ctx2.label}
+                </span>
+                <p
+                  className="text-sm font-bold tabular-nums text-right"
+                  style={{ color: winner === 2 ? "var(--color-primary)" : "var(--color-text)" }}
+                >
+                  {formatStatValue(key, val2)}
+                </p>
+              </div>
+              <PercentileBar stat={key} value={val2} showLabel={true} />
             </div>
           </div>
         );
@@ -348,6 +359,86 @@ function ComparisonTable({ player1, player2 }: { player1: PlayerDetail; player2:
           {stats2.games ?? 0} games
         </div>
       </div>
+    </div>
+  );
+}
+
+function TrendChart({ player1, player2 }: { player1: PlayerDetail; player2: PlayerDetail }) {
+  // Build last-20-game batting avg series for both players
+  const len = 20;
+  const r1 = player1.recent_stats.slice(-len);
+  const r2 = player2.recent_stats.slice(-len);
+  const maxLen = Math.max(r1.length, r2.length);
+
+  if (maxLen === 0) return null;
+
+  const chartData = Array.from({ length: maxLen }, (_, i) => ({
+    game: i + 1,
+    [player1.player.name]: (r1[i] as Record<string, number> | undefined)?.batting_avg ?? null,
+    [player2.player.name]: (r2[i] as Record<string, number> | undefined)?.batting_avg ?? null,
+  }));
+
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{ background: "var(--color-card)", border: "1px solid var(--color-border)" }}
+    >
+      <div className="mb-3">
+        <p className="text-xs font-semibold" style={{ color: "var(--color-text)" }}>
+          Recent Batting Average Trend
+        </p>
+        <p className="text-[10px]" style={{ color: "var(--color-muted)" }}>
+          Last {maxLen} games — per-game batting average
+        </p>
+      </div>
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(147,190,223,0.15)" />
+          <XAxis
+            dataKey="game"
+            tick={{ fill: "var(--color-subtle)", fontSize: 9 }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            tick={{ fill: "var(--color-subtle)", fontSize: 9 }}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v) => v.toFixed(3)}
+            domain={["auto", "auto"]}
+          />
+          <Tooltip
+            contentStyle={{
+              background: "var(--color-deeper)",
+              border: "1px solid var(--color-accent)",
+              borderRadius: "6px",
+              fontSize: "11px",
+            }}
+            labelStyle={{ color: "var(--color-muted)" }}
+            formatter={(v: number) => [v?.toFixed(3) ?? "—", ""]}
+          />
+          <Legend
+            wrapperStyle={{ fontSize: "10px", paddingTop: "8px" }}
+            formatter={(v) => <span style={{ color: "var(--color-muted)" }}>{v}</span>}
+          />
+          <Line
+            type="monotone"
+            dataKey={player1.player.name}
+            stroke="var(--color-secondary)"
+            strokeWidth={2}
+            dot={false}
+            connectNulls
+          />
+          <Line
+            type="monotone"
+            dataKey={player2.player.name}
+            stroke="var(--color-primary)"
+            strokeWidth={2}
+            dot={false}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }

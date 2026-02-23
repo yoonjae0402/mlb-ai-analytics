@@ -135,7 +135,8 @@ select {
   position: relative;
 }
 
-.stat-abbr:hover::after {
+.stat-abbr:hover::after,
+.stat-abbr:focus::after {
   content: attr(data-tip);
   position: absolute;
   bottom: calc(100% + 6px);
@@ -273,7 +274,8 @@ body:not(.beginner-mode) .beginner-label {
   position: relative;
 }
 
-[data-tooltip]:hover::after {
+[data-tooltip]:hover::after,
+[data-tooltip]:focus::after {
   content: attr(data-tooltip);
   position: absolute;
   bottom: calc(100% + 8px);

@@ -20,6 +20,7 @@ const STAT_THRESHOLDS: Record<string, StatThresholds> = {
   woba: { elite: 0.37, great: 0.33, average: 0.3 },
   barrel_rate: { elite: 12, great: 8, average: 5 },
   exit_velocity: { elite: 92, great: 89, average: 87 },
+  exit_velo: { elite: 92, great: 89, average: 87 },  // alias
   hard_hit_rate: { elite: 45, great: 38, average: 30 },
   k_rate: { elite: 15, great: 20, average: 25 }, // Lower is better
   bb_rate: { elite: 12, great: 9, average: 7 },
@@ -32,10 +33,35 @@ const STAT_THRESHOLDS: Record<string, StatThresholds> = {
   rbi: { elite: 100, great: 75, average: 50 },
   hits: { elite: 175, great: 150, average: 120 },
   walks: { elite: 80, great: 60, average: 40 },
+  iso: { elite: 0.22, great: 0.17, average: 0.12 },
+  babip: { elite: 0.34, great: 0.31, average: 0.28 },
 };
 
 // Stats where lower is better
 const LOWER_IS_BETTER = new Set(["k_rate"]);
+
+// Plain-English names for Beginner Mode
+export const BEGINNER_NAMES: Record<string, string> = {
+  batting_avg: "Hit rate",
+  obp: "Gets on base",
+  slg: "Power rating",
+  woba: "Overall hitting quality",
+  barrel_rate: "Perfect contact %",
+  exit_velocity: "Ball speed off bat",
+  exit_velo: "Ball speed off bat",
+  hard_hit_rate: "Hard contact %",
+  k_rate: "Strikeout rate",
+  bb_rate: "Walk rate",
+  sprint_speed: "Running speed",
+  iso: "Power",
+  babip: "Lucky hits %",
+  home_runs: "Home runs",
+  rbi: "Runs driven in",
+  hits: "Total hits",
+  walks: "Walks",
+  games: "Games played",
+  at_bats: "At bats",
+};
 
 export function getContextLevel(stat: string, value: number): ContextLevel {
   const thresholds = STAT_THRESHOLDS[stat];
@@ -69,6 +95,7 @@ const PERCENTILE_RANGES: Record<string, { min: number; max: number }> = {
   woba: { min: 0.25, max: 0.42 },
   barrel_rate: { min: 0, max: 18 },
   exit_velocity: { min: 83, max: 95 },
+  exit_velo: { min: 83, max: 95 },  // alias
   hard_hit_rate: { min: 20, max: 55 },
   k_rate: { min: 30, max: 10 }, // Inverted: lower is better
   bb_rate: { min: 3, max: 16 },
@@ -77,6 +104,8 @@ const PERCENTILE_RANGES: Record<string, { min: number; max: number }> = {
   predicted_hr: { min: 0, max: 0.4 },
   predicted_rbi: { min: 0, max: 2 },
   predicted_walks: { min: 0, max: 1 },
+  iso: { min: 0.05, max: 0.28 },
+  babip: { min: 0.22, max: 0.38 },
 };
 
 export function getPercentile(stat: string, value: number): number {
@@ -159,7 +188,7 @@ export const STAT_DISPLAY: Record<string, string> = {
 };
 
 export function formatStatValue(stat: string, value: number): string {
-  if (["batting_avg", "obp", "slg", "woba"].includes(stat)) {
+  if (["batting_avg", "obp", "slg", "woba", "iso", "babip"].includes(stat)) {
     return value.toFixed(3);
   }
   if (["predicted_hits", "predicted_hr", "predicted_rbi", "predicted_walks"].includes(stat)) {
@@ -168,7 +197,7 @@ export function formatStatValue(stat: string, value: number): string {
   if (["barrel_rate", "k_rate", "bb_rate", "hard_hit_rate"].includes(stat)) {
     return `${value.toFixed(1)}%`;
   }
-  if (stat === "exit_velocity" || stat === "sprint_speed") {
+  if (stat === "exit_velocity" || stat === "exit_velo" || stat === "sprint_speed") {
     return value.toFixed(1);
   }
   return String(Math.round(value));

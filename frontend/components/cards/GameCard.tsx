@@ -139,6 +139,30 @@ export default function GameCard({ game, onClick }: GameCardProps) {
             <div className="away-side" style={{ width: `${awayWinPct * 100}%`, transition: "width 0.5s" }} />
             <div className="home-side" style={{ width: `${homeWinPct * 100}%`, transition: "width 0.5s" }} />
           </div>
+          {/* Beginner verdict — only for upcoming games */}
+          {isScheduled && (
+            <div
+              className="beginner-label text-center text-[10px] mt-1.5 font-medium"
+              style={{
+                color:
+                  homeWinPct > 0.55
+                    ? "var(--color-primary)"
+                    : awayWinPct > 0.55
+                    ? "var(--color-secondary)"
+                    : "var(--color-muted)",
+              }}
+            >
+              {homeWinPct > 0.65
+                ? `${game.home_abbrev} favored 🏠`
+                : homeWinPct > 0.55
+                ? `${game.home_abbrev} slight edge`
+                : awayWinPct > 0.65
+                ? `${game.away_abbrev} favored`
+                : awayWinPct > 0.55
+                ? `${game.away_abbrev} slight edge`
+                : "Toss-up 🤝"}
+            </div>
+          )}
         </div>
       </div>
     </div>

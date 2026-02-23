@@ -193,13 +193,13 @@ export default function DashboardPage() {
 
                   {wpData && (
                     <div
-                      className="rounded-lg p-3"
+                      className="rounded-lg p-3 space-y-2"
                       style={{ background: "var(--color-dark)", border: "1px solid var(--color-border)" }}
                     >
-                      <div className="text-[10px] font-semibold uppercase mb-2" style={{ color: "var(--color-muted)" }}>
+                      <div className="text-[10px] font-semibold uppercase" style={{ color: "var(--color-muted)" }}>
                         Projected Runs
                         <span
-                          className="ml-1 cursor-help"
+                          className="ml-1 cursor-help advanced-stat"
                           data-tooltip="Lineup wOBA × park factor × starter ERA adjustment via Pythagorean expectation. Not a guarantee."
                           style={{ borderBottom: "1px dotted var(--color-accent)" }}
                         > (?)</span>
@@ -212,9 +212,32 @@ export default function DashboardPage() {
                           {selectedGame.home_abbrev}: {wpData.home?.projected_runs?.toFixed(1) ?? "—"}
                         </span>
                       </div>
-                      <div className="text-[10px] mt-1" style={{ color: "var(--color-subtle)" }}>
-                        Confidence: {wpData.confidence != null ? `${(wpData.confidence * 100).toFixed(0)}%` : "—"} ·
-                        {wpData.method ?? "Pythagorean"}
+
+                      {/* Confidence badge + coverage */}
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <ConfidenceBadge confidence={wpData.confidence} />
+                        <span className="text-[10px]" style={{ color: "var(--color-subtle)" }}>
+                          {(wpData.away?.n_players_with_predictions ?? 0) + (wpData.home?.n_players_with_predictions ?? 0)}/{(wpData.away?.n_total_players ?? 0) + (wpData.home?.n_total_players ?? 0)} players with data
+                        </span>
+                      </div>
+
+                      {/* Beginner explanation */}
+                      <div
+                        className="beginner-label rounded p-2 text-[10px]"
+                        style={{ background: "rgba(94,252,141,0.06)", color: "var(--color-muted)", border: "1px solid rgba(94,252,141,0.15)" }}
+                      >
+                        <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>
+                          Why we favor {wpData.home_win_pct > 0.5 ? selectedGame.home_name : selectedGame.away_name}:
+                        </span>{" "}
+                        {wpData.home_win_pct > 0.5
+                          ? `${selectedGame.home_name} projects ${wpData.home?.projected_runs?.toFixed(1) ?? "more"} runs vs ${wpData.away?.projected_runs?.toFixed(1) ?? "fewer"} for ${selectedGame.away_name}, plus home field advantage.`
+                          : `${selectedGame.away_name} projects ${wpData.away?.projected_runs?.toFixed(1) ?? "more"} runs vs ${wpData.home?.projected_runs?.toFixed(1) ?? "fewer"} for ${selectedGame.home_name}.`
+                        }
+                      </div>
+
+                      {/* Advanced: method + uncertainty */}
+                      <div className="text-[10px] advanced-stat" style={{ color: "var(--color-subtle)" }}>
+                        Method: {wpData.method ?? "Pythagorean"} · Uncertainty: ±{Math.round((1 - (wpData.confidence ?? 0.5)) * 20)}%
                       </div>
                     </div>
                   )}
@@ -320,6 +343,22 @@ function StatusTile({
         {sub && <div className="text-[10px]" style={{ color: "var(--color-subtle)" }}>{sub}</div>}
       </div>
     </div>
+  );
+}
+
+function ConfidenceBadge({ confidence }: { confidence?: number }) {
+  if (confidence == null) return null;
+  const pct = Math.round(confidence * 100);
+  const color = pct >= 70 ? "var(--color-primary)" : pct >= 55 ? "#f59e0b" : "#f97316";
+  const bg = pct >= 70 ? "rgba(94,252,141,0.12)" : pct >= 55 ? "rgba(245,158,11,0.12)" : "rgba(249,115,22,0.12)";
+  const border = pct >= 70 ? "rgba(94,252,141,0.3)" : pct >= 55 ? "rgba(245,158,11,0.3)" : "rgba(249,115,22,0.3)";
+  return (
+    <span
+      className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+      style={{ background: bg, color, border: `1px solid ${border}` }}
+    >
+      {pct}% confidence
+    </span>
   );
 }
 

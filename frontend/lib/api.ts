@@ -42,6 +42,8 @@ export const getPlayerIndex = (params: {
   level?: string;
   position?: string;
   search?: string;
+  sort_by?: string;
+  sort_dir?: string;
 }) => {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
@@ -50,8 +52,13 @@ export const getPlayerIndex = (params: {
   if (params.level) qs.set("level", params.level);
   if (params.position) qs.set("position", params.position);
   if (params.search) qs.set("search", params.search);
+  if (params.sort_by) qs.set("sort_by", params.sort_by);
+  if (params.sort_dir) qs.set("sort_dir", params.sort_dir);
   return fetchAPI<PlayerIndexResult>(`/v1/players/index?${qs.toString()}`);
 };
+
+// Standings
+export const getStandings = () => fetchAPI<StandingsResult>("/v1/standings/");
 
 // Teams
 export const getTeams = () => fetchAPI<TeamData[]>("/v1/teams/");
@@ -564,4 +571,31 @@ export interface PitcherStatsResult {
 // Player Compare
 export interface PlayerCompareResult {
   players: PlayerDetail[];
+}
+
+// Standings Types
+export interface TeamStanding {
+  team_name: string;
+  team_abbreviation: string;
+  wins: number;
+  losses: number;
+  pct: number;
+  gb: string;
+  streak: string;
+  last_10: string;
+  home_record?: string;
+  away_record?: string;
+  division_rank: number;
+  wildcard_gb?: string;
+}
+
+export interface DivisionStandings {
+  division_name: string;
+  league: string;
+  teams: TeamStanding[];
+}
+
+export interface StandingsResult {
+  divisions: DivisionStandings[];
+  as_of: string;
 }

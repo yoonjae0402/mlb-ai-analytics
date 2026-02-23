@@ -50,9 +50,11 @@ async def player_index(
     level: str = Query(None),
     position: str = Query(None),
     search: str = Query(None),
+    sort_by: str = Query("name"),
+    sort_dir: str = Query("asc"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Paginated, filterable player index (MLB + MiLB)."""
+    """Paginated, filterable, sortable player index (MLB + MiLB)."""
     query = select(Player)
     count_query = select(func.count(Player.id))
 
@@ -71,9 +73,21 @@ async def player_index(
 
     total = (await db.execute(count_query)).scalar() or 0
 
+    # Sortable columns
+    _sort_col_map = {
+        "name": Player.name,
+        "team": Player.team,
+        "position": Player.position,
+        "level": Player.current_level,
+        "age": Player.age,
+        "rank": Player.prospect_rank,
+    }
+    sort_col = _sort_col_map.get(sort_by, Player.name)
+    order_clause = sort_col.asc() if sort_dir != "desc" else sort_col.desc()
+
     offset = (page - 1) * per_page
     result = await db.execute(
-        query.order_by(Player.name).offset(offset).limit(per_page)
+        query.order_by(order_clause).offset(offset).limit(per_page)
     )
     players = result.scalars().all()
 
@@ -188,7 +202,7 @@ async def get_player(player_id: int, db: AsyncSession = Depends(get_db)):
     )
     stats = stats_result.scalars().all()
 
-    # Season totals
+    # Season totals (including Statcast averages)
     totals_result = await db.execute(
         select(
             func.sum(PlayerStat.hits).label("hits"),
@@ -197,6 +211,12 @@ async def get_player(player_id: int, db: AsyncSession = Depends(get_db)):
             func.sum(PlayerStat.walks).label("walks"),
             func.sum(PlayerStat.at_bats).label("at_bats"),
             func.count(PlayerStat.id).label("games"),
+            func.avg(PlayerStat.woba).label("woba"),
+            func.avg(PlayerStat.barrel_rate).label("barrel_rate"),
+            func.avg(PlayerStat.exit_velo).label("exit_velo"),
+            func.avg(PlayerStat.k_rate).label("k_rate"),
+            func.avg(PlayerStat.bb_rate).label("bb_rate"),
+            func.avg(PlayerStat.sprint_speed).label("sprint_speed"),
         )
         .where(PlayerStat.player_id == player_id)
     )
@@ -211,9 +231,11 @@ async def get_player(player_id: int, db: AsyncSession = Depends(get_db)):
         # OBP = (H + BB) / (AB + BB)
         obp_denom = ab + bb if ab > 0 else 1
         obp = round((h + bb) / obp_denom, 3)
-        # SLG approximation (we don't have 2B/3B, so use H + HR as a proxy for total bases)
-        # Rough estimate: total_bases ≈ H + HR (assumes extra bases from HR)
+        # SLG approximation: total_bases ≈ H + HR
         slg = round((h + hr) / ab, 3) if ab > 0 else 0.0
+        avg = round(h / ab, 3) if ab > 0 else 0.0
+        # ISO = SLG - AVG (isolated power)
+        iso = round(slg - avg, 3)
 
         season_totals = {
             "games": totals.games,
@@ -222,10 +244,24 @@ async def get_player(player_id: int, db: AsyncSession = Depends(get_db)):
             "rbi": totals.rbi or 0,
             "walks": bb,
             "at_bats": ab,
-            "batting_avg": round(h / ab, 3),
+            "batting_avg": avg,
             "obp": obp,
             "slg": slg,
+            "iso": iso,
         }
+        # Statcast averages (only include if data exists)
+        if totals.woba is not None:
+            season_totals["woba"] = round(float(totals.woba), 3)
+        if totals.barrel_rate is not None:
+            season_totals["barrel_rate"] = round(float(totals.barrel_rate), 1)
+        if totals.exit_velo is not None:
+            season_totals["exit_velo"] = round(float(totals.exit_velo), 1)
+        if totals.k_rate is not None:
+            season_totals["k_rate"] = round(float(totals.k_rate), 1)
+        if totals.bb_rate is not None:
+            season_totals["bb_rate"] = round(float(totals.bb_rate), 1)
+        if totals.sprint_speed is not None:
+            season_totals["sprint_speed"] = round(float(totals.sprint_speed), 1)
 
     return PlayerDetail(
         player=_player_to_response(player),

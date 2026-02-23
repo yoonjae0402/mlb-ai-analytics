@@ -24,11 +24,30 @@ export default function PlayersPage() {
   const [teamFilter, setTeamFilter] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState("");
+  const [sortBy, setSortBy] = useState("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const handleSort = (col: string) => {
+    if (sortBy === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(col);
+      setSortDir("asc");
+    }
+    setPage(1);
+  };
+
+  const SortIcon = ({ col }: { col: string }) =>
+    sortBy === col ? (
+      <span style={{ marginLeft: "3px", fontSize: "8px", opacity: 0.9 }}>
+        {sortDir === "asc" ? "▲" : "▼"}
+      </span>
+    ) : null;
 
   const { data: teamsData } = useQuery({ queryKey: ["teams"], queryFn: getTeams });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["playerIndex", page, search, teamFilter, levelFilter, positionFilter],
+    queryKey: ["playerIndex", page, search, teamFilter, levelFilter, positionFilter, sortBy, sortDir],
     queryFn: () =>
       getPlayerIndex({
         page, per_page: 25,
@@ -36,6 +55,8 @@ export default function PlayersPage() {
         team: teamFilter || undefined,
         level: levelFilter || undefined,
         position: positionFilter || undefined,
+        sort_by: sortBy,
+        sort_dir: sortDir,
       }),
     placeholderData: keepPreviousData,
   });
@@ -117,24 +138,49 @@ export default function PlayersPage() {
         <table className="fg-table w-full">
           <thead>
             <tr>
-              <th>Player</th>
-              <th>
-                <abbr
-                  className="stat-abbr"
-                  data-tip="Team abbreviation (MLB franchise or minor league affiliate)"
-                >
+              <th
+                onClick={() => handleSort("name")}
+                className={sortBy === "name" ? "sorted" : ""}
+              >
+                Player <SortIcon col="name" />
+              </th>
+              <th
+                onClick={() => handleSort("team")}
+                className={sortBy === "team" ? "sorted" : ""}
+              >
+                <abbr className="stat-abbr" data-tip="Team abbreviation (MLB franchise or minor league affiliate)">
                   Team
                 </abbr>
+                <SortIcon col="team" />
               </th>
-              <th>
+              <th
+                onClick={() => handleSort("position")}
+                className={sortBy === "position" ? "sorted" : ""}
+              >
                 <abbr className="stat-abbr" data-tip="Fielding position (1B = first base, SS = shortstop, etc.)">Pos</abbr>
+                <SortIcon col="position" />
               </th>
-              <th>Level</th>
+              <th
+                onClick={() => handleSort("level")}
+                className={sortBy === "level" ? "sorted" : ""}
+              >
+                Level <SortIcon col="level" />
+              </th>
               <th>
                 <abbr className="stat-abbr" data-tip="Bats (R=Right, L=Left, S=Switch) / Throws (R/L)">B/T</abbr>
               </th>
-              <th style={{ textAlign: "right" }}>
-                <abbr className="stat-abbr" data-tip="Baseball America / MLB Pipeline prospect ranking">Rank</abbr>
+              <th
+                style={{ textAlign: "right" }}
+                onClick={() => handleSort("rank")}
+                className={sortBy === "rank" ? "sorted" : ""}
+              >
+                <span className="advanced-stat">
+                  <abbr className="stat-abbr" data-tip="Baseball America / MLB Pipeline prospect ranking">Rank</abbr>
+                </span>
+                <span className="beginner-label">
+                  <abbr className="stat-abbr" data-tip="How highly this player is ranked as a future MLB star">Prospect</abbr>
+                </span>
+                <SortIcon col="rank" />
               </th>
             </tr>
           </thead>

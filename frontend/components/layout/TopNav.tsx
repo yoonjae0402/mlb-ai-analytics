@@ -10,12 +10,13 @@ import {
 } from "lucide-react";
 
 const NAV_TABS = [
-  { label: "Games",      href: "/dashboard",           exact: true  },
-  { label: "Schedule",   href: "/dashboard/schedule",  exact: true  },
-  { label: "Players",    href: "/dashboard/players",   exact: false },
-  { label: "Pitchers",   href: "/dashboard/pitchers",  exact: true  },
-  { label: "Compare",    href: "/dashboard/compare",   exact: true  },
-  { label: "Leaderboard",href: "/dashboard/leaderboard", exact: true },
+  { label: "Games",      href: "/dashboard",             exact: true  },
+  { label: "Schedule",   href: "/dashboard/schedule",    exact: true  },
+  { label: "Standings",  href: "/dashboard/standings",   exact: true  },
+  { label: "Players",    href: "/dashboard/players",     exact: false },
+  { label: "Pitchers",   href: "/dashboard/pitchers",    exact: true  },
+  { label: "Compare",    href: "/dashboard/compare",     exact: true  },
+  { label: "Leaderboard",href: "/dashboard/leaderboard", exact: true  },
 ];
 
 const ANALYSIS_ITEMS = [
@@ -318,6 +319,30 @@ export default function TopNav() {
           <span>Auto-refreshes every 30s</span>
         </div>
       </nav>
+
+      {/* Beginner Mode info banner */}
+      {beginnerMode && (
+        <div
+          className="px-4 py-1.5 text-xs flex items-center justify-between"
+          style={{
+            background: "rgba(94,252,141,0.08)",
+            borderTop: "1px solid rgba(94,252,141,0.2)",
+          }}
+        >
+          <span style={{ color: "var(--color-primary)" }}>
+            📚 <strong>Beginner Mode ON</strong> — advanced stats are hidden and plain-English labels are shown.
+          </span>
+          <button
+            onClick={() => setBeginnerMode(false)}
+            className="text-[10px] px-2 py-0.5 rounded transition-colors"
+            style={{ color: "var(--color-muted)", border: "1px solid var(--color-border)" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "var(--color-text)")}
+            onMouseLeave={e => (e.currentTarget.style.color = "var(--color-muted)")}
+          >
+            Turn off
+          </button>
+        </div>
+      )}
     </header>
   );
 }

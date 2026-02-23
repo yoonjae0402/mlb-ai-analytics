@@ -30,8 +30,8 @@ export default function LeaderboardPage() {
           <h1 className="text-xl font-bold" style={{ color: "var(--color-text)" }}>Player Leaderboard</h1>
         </div>
         <p className="text-xs" style={{ color: "var(--color-muted)" }}>
-          Top performers ranked by composite score (H + 4×HR + RBI) based on recent stats and projected performance.
-          Hover column headers for explanations.
+          <span className="advanced-stat">Top performers ranked by composite score (H + 4×HR + RBI) based on recent stats and projected performance. Hover column headers for explanations.</span>
+          <span className="beginner-label">Top players most likely to perform well today. Click any player to see their full stats!</span>
         </p>
       </div>
 
@@ -92,7 +92,12 @@ export default function LeaderboardPage() {
                 data-tip={STAT_TIPS[stat]}
                 style={{ borderBottom: "1px dotted var(--color-accent)" }}
               >
-                {stat}
+                {stat === "Score" ? (
+                  <>
+                    <span className="advanced-stat">Score</span>
+                    <span className="beginner-label">Best Pick</span>
+                  </>
+                ) : stat}
               </span>
             ))}
           </div>
@@ -122,10 +127,17 @@ export default function LeaderboardPage() {
         className="rounded-xl p-4 text-xs"
         style={{ background: "var(--color-card)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}
       >
-        <strong style={{ color: "var(--color-accent)" }}>How scores are calculated:</strong>{" "}
-        Composite Score = Hits + 4×HR + RBI using projected per-game stats from our ML ensemble model.
-        Stats reflect projected <em>per-game</em> performance, not season totals.
-        See the <Link href="/architecture" style={{ color: "var(--color-secondary)" }}>Architecture page</Link> for full methodology.
+        <span className="advanced-stat">
+          <strong style={{ color: "var(--color-accent)" }}>How scores are calculated:</strong>{" "}
+          Composite Score = Hits + 4×HR + RBI using projected per-game stats from our ML ensemble model.
+          Stats reflect projected <em>per-game</em> performance, not season totals.
+          See the <Link href="/architecture" style={{ color: "var(--color-secondary)" }}>Architecture page</Link> for full methodology.
+        </span>
+        <span className="beginner-label">
+          <strong style={{ color: "var(--color-accent)" }}>How we pick the best players:</strong>{" "}
+          We use recent performance to predict how many hits, home runs, and runs batted in each player will have today.
+          Higher numbers = more likely to have a great game!
+        </span>
       </div>
     </div>
   );

@@ -1,6 +1,4 @@
-import { cn } from "@/lib/utils";
 import type { GameData } from "@/lib/api";
-import InfoTooltip from "@/components/ui/InfoTooltip";
 
 interface GameCardProps {
   game: GameData;
@@ -9,69 +7,140 @@ interface GameCardProps {
 
 export default function GameCard({ game, onClick }: GameCardProps) {
   const isLive = game.status === "In Progress" || game.status === "Live";
-  const isFinal = game.status === "Final";
+  const isFinal = game.status?.toLowerCase().includes("final");
+  const isScheduled = !isLive && !isFinal;
+
+  const homeWinPct = game.home_win_prob ?? 0.5;
+  const awayWinPct = 1 - homeWinPct;
 
   return (
     <div
       onClick={onClick}
-      className={cn(
-        "bg-mlb-card border border-mlb-border rounded-xl p-4 cursor-pointer",
-        "hover:border-mlb-blue/40 transition-colors"
-      )}
+      className="fg-card cursor-pointer transition-all"
+      style={{ textDecoration: "none" }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--color-secondary)";
+        (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.25)";
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)";
+        (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+        (e.currentTarget as HTMLElement).style.boxShadow = "none";
+      }}
     >
-      <div className="flex items-center justify-between mb-3">
+      {/* Status bar */}
+      <div
+        className="px-3 py-1.5 flex items-center justify-between text-[10px] font-semibold"
+        style={{
+          background: isLive
+            ? "rgba(94,252,141,0.12)"
+            : isFinal
+            ? "rgba(147,190,223,0.08)"
+            : "rgba(131,119,209,0.15)",
+          borderBottom: "1px solid var(--color-border)",
+        }}
+      >
         <span
-          className={cn(
-            "text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full",
-            isLive && "bg-mlb-red/20 text-mlb-red",
-            isFinal && "bg-mlb-muted/20 text-mlb-muted",
-            !isLive && !isFinal && "bg-mlb-blue/20 text-mlb-blue"
-          )}
+          style={{
+            color: isLive
+              ? "var(--color-primary)"
+              : isFinal
+              ? "var(--color-muted)"
+              : "var(--color-accent)",
+          }}
         >
-          {isLive
-            ? `${game.half} ${game.inning}`
-            : game.status}
+          {isLive ? (
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full live-dot" style={{ background: "var(--color-primary)" }} />
+              LIVE · {game.half} {game.inning}
+            </span>
+          ) : isFinal ? (
+            "FINAL"
+          ) : (
+            game.status || "SCHEDULED"
+          )}
         </span>
         {game.venue && (
-          <span className="text-[10px] text-mlb-muted truncate max-w-[100px]">
+          <span
+            className="truncate max-w-[110px]"
+            style={{ color: "var(--color-subtle)" }}
+          >
             {game.venue}
           </span>
         )}
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-mlb-text">
-            {game.away_abbrev}
-          </span>
-          <span className="text-lg font-bold text-mlb-text">
-            {game.away_score}
-          </span>
+      <div className="p-3 space-y-2.5">
+        {/* Teams + Scores */}
+        <div className="space-y-1.5">
+          {/* Away */}
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-bold" style={{ color: "var(--color-text)" }}>
+                {game.away_abbrev}
+              </span>
+              {game.away_probable_pitcher && (
+                <span className="text-[10px] ml-1.5" style={{ color: "var(--color-subtle)" }}>
+                  {game.away_probable_pitcher}
+                </span>
+              )}
+            </div>
+            <span
+              className="text-lg font-bold tabular-nums"
+              style={{ color: isLive || isFinal ? "var(--color-text)" : "var(--color-subtle)" }}
+            >
+              {isLive || isFinal ? game.away_score : "—"}
+            </span>
+          </div>
+
+          {/* Home */}
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-bold" style={{ color: "var(--color-text)" }}>
+                {game.home_abbrev}
+              </span>
+              {game.home_probable_pitcher && (
+                <span className="text-[10px] ml-1.5" style={{ color: "var(--color-subtle)" }}>
+                  {game.home_probable_pitcher}
+                </span>
+              )}
+            </div>
+            <span
+              className="text-lg font-bold tabular-nums"
+              style={{ color: isLive || isFinal ? "var(--color-text)" : "var(--color-subtle)" }}
+            >
+              {isLive || isFinal ? game.home_score : "—"}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-mlb-text">
-            {game.home_abbrev}
-          </span>
-          <span className="text-lg font-bold text-mlb-text">
-            {game.home_score}
-          </span>
+
+        {/* Game time (scheduled) */}
+        {isScheduled && game.game_datetime && (
+          <div className="text-[10px]" style={{ color: "var(--color-muted)" }}>
+            {new Date(game.game_datetime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+          </div>
+        )}
+
+        {/* Win Probability Bar */}
+        <div>
+          <div className="flex justify-between text-[10px] mb-1" style={{ color: "var(--color-subtle)" }}>
+            <span>{game.away_abbrev} {Math.round(awayWinPct * 100)}%</span>
+            <span
+              className="text-[9px] font-medium"
+              data-tooltip="Statistical win probability based on lineup strength, starting pitcher matchup, and home field advantage"
+              style={{ color: "var(--color-subtle)", cursor: "help", borderBottom: "1px dotted var(--color-accent)" }}
+            >
+              Win Prob
+            </span>
+            <span>{game.home_abbrev} {Math.round(homeWinPct * 100)}%</span>
+          </div>
+          <div className="win-prob-bar">
+            <div className="away-side" style={{ width: `${awayWinPct * 100}%`, transition: "width 0.5s" }} />
+            <div className="home-side" style={{ width: `${homeWinPct * 100}%`, transition: "width 0.5s" }} />
+          </div>
         </div>
       </div>
-
-      {(isLive || isFinal) && (
-        <div className="mt-3">
-          <div className="flex justify-between text-[10px] text-mlb-muted mb-1">
-            <span>Win Prob<InfoTooltip term="win_probability" /></span>
-            <span>{(game.home_win_prob * 100).toFixed(0)}%</span>
-          </div>
-          <div className="h-1.5 bg-mlb-surface rounded-full overflow-hidden">
-            <div
-              className="h-full bg-mlb-blue rounded-full transition-all duration-500"
-              style={{ width: `${game.home_win_prob * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

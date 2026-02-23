@@ -212,6 +212,182 @@ Backend settings are managed via `backend/core/config.py` using Pydantic. All en
 
 Settings can also be loaded from a `.env` file.
 
+---
+
+## Prediction Methodology
+
+This section documents the complete prediction logic so developers can understand, audit, and reproduce the models.
+
+### Overview
+
+The platform predicts **per-game batting stats** (hits, HR, RBI, walks) for individual MLB players using a sequence model trained on rolling game-by-game data. Game-level win probability is derived from these player predictions using Pythagorean expectation.
+
+**Prediction targets:** 4 outputs — `hits`, `home_runs`, `rbi`, `walks`
+
+---
+
+### 1. Data Sources
+
+| Source | Data Fetched | Library |
+|--------|-------------|---------|
+| **Baseball Savant (Statcast)** | Exit velocity, barrel rate, launch angle, sprint speed, hard hit %, pull % | `pybaseball.statcast_batter()` |
+| **FanGraphs** | wOBA, K%, BB%, BABIP, ISO, platoon splits | `pybaseball.batting_stats()` |
+| **MLB Stats API** | Game schedule, lineup, game results, probable pitchers | `statsapi.schedule()`, `statsapi.boxscore()` |
+| **PostgreSQL DB** | Pre-processed and cached player stats, games, predictions | SQLAlchemy ORM |
+
+---
+
+### 2. Feature Engineering (26 Features)
+
+Features are computed per game appearance and assembled into **sliding window sequences of 10 consecutive games** (shape `[N, 10, 26]`).
+
+#### Batter Core (15 features)
+| Feature | Source | Description |
+|---------|---------|-------------|
+| `batting_avg` | FanGraphs | Rolling 10-game batting average |
+| `on_base_pct` (OBP) | FanGraphs | (H+BB+HBP)/(AB+BB+HBP+SF) |
+| `slugging_pct` (SLG) | FanGraphs | Total bases / AB |
+| `woba` | FanGraphs | Weighted On-Base Average (linear weights model) |
+| `barrel_rate` | Statcast | % of batted balls with ideal exit velo + angle |
+| `exit_velocity` | Statcast | Average exit velocity (mph) on contact |
+| `launch_angle` | Statcast | Average launch angle (degrees) |
+| `sprint_speed` | Statcast | Feet per second during max effort runs |
+| `k_rate` | FanGraphs | Strikeout rate (K/PA) |
+| `bb_rate` | FanGraphs | Walk rate (BB/PA) |
+| `hard_hit_rate` | Statcast | % batted balls at 95+ mph exit velocity |
+| `pull_rate` | Statcast | % batted balls pulled to pull-side |
+| `park_factor` | FanGraphs | Run environment adjustment for ballpark |
+| `platoon_advantage` | MLB Stats API | +1 if batter/pitcher handedness mismatch (favors batter) |
+| `days_rest` | Schedule | Days since last game appearance |
+
+#### Pitcher Matchup (5 features)
+| Feature | Source | Description |
+|---------|---------|-------------|
+| `opp_era` | DB / MLB API | Starting pitcher's season ERA |
+| `opp_whip` | DB / MLB API | Starting pitcher's WHIP (H+BB per inning) |
+| `opp_k_per_9` | DB / MLB API | Starting pitcher's K/9 |
+| `opp_bb_per_9` | DB / MLB API | Starting pitcher's BB/9 |
+| `opp_handedness_adv` | MLB API | +1 if same hand (pitcher advantage), -1 if opposite |
+
+**Important:** Pitcher matching uses the **actual opponent** from the game schedule, looked up O(1) from a pre-built `{(team, date): opponent}` dictionary. This avoids the common bug of scanning all teams on a date.
+
+#### Derived / Context (6 features)
+| Feature | Formula | Description |
+|---------|---------|-------------|
+| `iso` | SLG - AVG | Isolated Power (extra bases per AB) |
+| `hot_streak` | Last 7 games ≥ .350 AVG | Binary hot streak indicator |
+| `cold_streak` | Last 7 games ≤ .150 AVG | Binary cold streak indicator |
+| `babip` | (H - HR) / (AB - K - HR + SF) | Batting Average on Balls in Play |
+| `is_home` | Schedule | 1 = home team, 0 = away |
+| `opp_quality` | Team win% | Opponent quality based on current win percentage |
+
+#### Preprocessing
+- All 26 features are **StandardScaler** normalized — scaler is fit **on training data only** to prevent data leakage
+- Missing Statcast features default to per-position league averages (not dropped)
+
+---
+
+### 3. Model Architecture
+
+#### Primary: BiLSTM + Multi-Head Attention (`PlayerLSTM`)
+```
+Input: (batch, 10, 26)
+  → Linear projection: 26 → hidden_size
+  → 2-layer Bidirectional LSTM: hidden_size × 2
+  → 8-head Self-Attention + LayerNorm
+  → Last timestep → GELU → Dropout(0.3) → Linear(4)
+Output: (batch, 4) [hits, hr, rbi, walks]
+```
+- Hidden size: 128 (default, tunable via Optuna)
+- Learning rate: 1e-3 (Adam, cosine annealing)
+- Epochs: 50 with early stopping (patience=10)
+
+#### Ensemble (`EnsemblePredictor`)
+Combines predictions from LSTM + XGBoost + LightGBM + Ridge:
+- **Weighted average**: `Σ(weight_i × prediction_i)` — default equal weights
+- **Stacking**: Ridge regression meta-learner trained on held-out validation predictions
+
+Weights are optimized by minimizing validation MSE on a held-out split.
+
+---
+
+### 4. Starting Lineup Prediction
+
+The platform does **not** attempt to predict batting order from scratch. Instead:
+
+1. **Probable pitchers** come from MLB Stats API `schedule()` endpoint (official probable starters)
+2. **Batting lineups** on game day come from `statsapi.boxscore()` for games in progress / completed
+3. For **pre-game lineup estimation**, the system uses: the most recent lineup from the team's last game (from DB), filtered by active roster (not on IL)
+4. Players are flagged as "Probable" (in recent lineup), "Questionable" (limited recent ABs), or "Day-to-Day" (IL status from MLB API)
+
+---
+
+### 5. Projected Runs Formula
+
+```
+projected_runs(team) = Σ(player_woba_pred × PA_estimate) × run_weight × park_factor × era_adjustment
+```
+
+Step-by-step:
+1. **Per-player projected wOBA** from the LSTM ensemble
+2. **PA estimate**: average PAs per slot by batting order position (leadoff ~4.5, 9th ~3.5)
+3. **Run weight**: wOBA ÷ 1.25 (approximates runs per PA from wOBA linear weights)
+4. **Park factor**: venue-specific run environment (from FanGraphs park factor table, stored per game)
+5. **ERA adjustment**: `max(0.7, min(1.3, league_avg_era / starter_era))` — better pitchers reduce run projection
+
+**Missing players**: Slots with no prediction data use `league_avg_per_slot = 4.5 runs / 9 batters = 0.5 runs/slot`. This prevents skew when one team has fewer predictions than the other.
+
+**Home field advantage**: +0.3 projected runs added to the home team total.
+
+---
+
+### 6. Win Probability Calculation
+
+```python
+def pythagorean_win_prob(runs_scored, runs_allowed, exponent=1.83):
+    return runs_scored**exponent / (runs_scored**exponent + runs_allowed**exponent)
+```
+
+- **Pre-game**: Uses projected runs from Section 5 above
+- **In-game**: Win probability updates after each inning using actual runs scored + projected remaining innings
+- **Exponent 1.83**: This is the empirically validated exponent (Davenport/Smyth refinement of Bill James's original 2.0)
+
+**Inning-by-inning WP history** is stored in the `games.wp_history` column as a JSON array and displayed as a line chart.
+
+---
+
+### 7. Uncertainty & Confidence Intervals
+
+**Monte Carlo Dropout (MC Dropout):**
+- LSTM model runs **30 forward passes** with dropout enabled at inference time
+- Standard deviation of the 30 predictions gives per-stat uncertainty
+- **90% confidence interval**: `prediction ± 1.645 × std_dev`
+
+**Confidence Score** = `1 / (1 + avg_std_dev)` — closer to 1 means more certain
+
+---
+
+### 8. Evaluation Methodology (Honest)
+
+To avoid misleadingly optimistic metrics:
+
+1. **Temporal split**: Training 70%, validation 15%, test 15% — always chronological (no random split which would leak future data)
+2. **Baselines compared**: Each model is compared against (a) season average, (b) rolling 7-game average, (c) last-game stats
+3. **Bootstrap confidence intervals**: 1000 bootstrap samples on the test set to get 95% CI on MAE and R²
+4. **Prediction tracking**: Every prediction is stored in `predictions` table; `accuracy/backfill` compares against actual box scores pulled from MLB Stats API
+
+---
+
+### 9. Limitations
+
+- Single-game predictions in baseball have **high inherent variance** (BABIP noise, small sample effects)
+- Statcast features (barrel rate, exit velocity) require sufficient plate appearances to be meaningful
+- Lineup predictions before official lineups are released are estimates based on historical tendencies
+- Public API rate limits may cause scraping delays; Parquet caching mitigates this
+- The model was trained on 2023–2024 data; performance on players with limited recent history may be lower
+
+---
+
 ## What I Learned
 
 - **Feature engineering matters more than model architecture.** Rolling averages and trend features contributed more to prediction quality than switching between LSTM configurations.

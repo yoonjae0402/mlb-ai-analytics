@@ -4,20 +4,16 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { getScheduleRange } from "@/lib/api";
 import type { ScheduleGame } from "@/lib/api";
-import {
-  Calendar, ChevronLeft, ChevronRight, Clock, ExternalLink,
-} from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Clock, ExternalLink } from "lucide-react";
 
 function formatDate(d: Date): string {
   return d.toISOString().split("T")[0];
 }
-
 function addDays(d: Date, n: number): Date {
   const result = new Date(d);
   result.setDate(result.getDate() + n);
   return result;
 }
-
 function startOfWeek(d: Date): Date {
   const result = new Date(d);
   result.setDate(result.getDate() - result.getDay());
@@ -30,7 +26,6 @@ export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<"week" | "month">("week");
 
-  // Compute range based on view
   const { startDate, endDate, days } = useMemo(() => {
     if (view === "week") {
       const start = startOfWeek(currentDate);
@@ -41,7 +36,6 @@ export default function SchedulePage() {
     } else {
       const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-      // Pad to full weeks
       const calStart = startOfWeek(start);
       const days: Date[] = [];
       let d = calStart;
@@ -61,7 +55,6 @@ export default function SchedulePage() {
 
   const games = data?.games || [];
 
-  // Group games by date
   const gamesByDate = useMemo(() => {
     const map: Record<string, ScheduleGame[]> = {};
     for (const g of games) {
@@ -72,95 +65,112 @@ export default function SchedulePage() {
     return map;
   }, [games]);
 
-  const navigateBack = () => {
-    if (view === "week") {
-      setCurrentDate(addDays(currentDate, -7));
-    } else {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    }
-  };
-
-  const navigateForward = () => {
-    if (view === "week") {
-      setCurrentDate(addDays(currentDate, 7));
-    } else {
-      setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-    }
-  };
-
   const today = formatDate(new Date());
 
+  const navigateBack = () => {
+    if (view === "week") setCurrentDate(addDays(currentDate, -7));
+    else setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
+  const navigateForward = () => {
+    if (view === "week") setCurrentDate(addDays(currentDate, 7));
+    else setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
   return (
-    <div className="max-w-7xl mx-auto space-y-5">
+    <div className="max-w-7xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Calendar className="w-5 h-5 text-mlb-red" />
+          <Calendar className="w-5 h-5" style={{ color: "var(--color-primary)" }} />
           <div>
-            <h1 className="text-lg font-bold text-mlb-text">Schedule</h1>
-            <p className="text-xs text-mlb-muted">
-              {currentDate.toLocaleDateString("en-US", {
-                month: "long",
-                year: "numeric",
-              })}
+            <h1 className="text-lg font-bold" style={{ color: "var(--color-text)" }}>
+              Schedule
+            </h1>
+            <p className="text-xs" style={{ color: "var(--color-muted)" }}>
+              {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* View Toggle */}
-          <div className="flex bg-mlb-surface border border-mlb-border rounded overflow-hidden">
-            <button
-              onClick={() => setView("week")}
-              className={`px-3 py-1 text-xs ${
-                view === "week"
-                  ? "bg-mlb-red text-white"
-                  : "text-mlb-muted hover:text-mlb-text"
-              }`}
-            >
-              Week
-            </button>
-            <button
-              onClick={() => setView("month")}
-              className={`px-3 py-1 text-xs ${
-                view === "month"
-                  ? "bg-mlb-red text-white"
-                  : "text-mlb-muted hover:text-mlb-text"
-              }`}
-            >
-              Month
-            </button>
+          {/* View toggle */}
+          <div
+            className="flex rounded overflow-hidden"
+            style={{ border: "1px solid var(--color-border)", background: "var(--color-dark)" }}
+          >
+            {(["week", "month"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className="px-3 py-1.5 text-xs font-medium capitalize transition-colors"
+                style={{
+                  background: view === v ? "var(--color-panel)" : "transparent",
+                  color: view === v ? "var(--color-primary)" : "var(--color-muted)",
+                }}
+              >
+                {v}
+              </button>
+            ))}
           </div>
 
-          {/* Navigation */}
           <button
             onClick={() => setCurrentDate(new Date())}
-            className="px-3 py-1 text-xs bg-mlb-surface border border-mlb-border rounded text-mlb-muted hover:text-mlb-text"
+            className="px-3 py-1.5 text-xs rounded"
+            style={{ background: "var(--color-dark)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}
           >
             Today
           </button>
-          <button onClick={navigateBack} className="p-1 rounded bg-mlb-surface border border-mlb-border text-mlb-muted hover:text-mlb-text">
+          <button
+            onClick={navigateBack}
+            className="p-1.5 rounded"
+            style={{ background: "var(--color-dark)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}
+          >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <button onClick={navigateForward} className="p-1 rounded bg-mlb-surface border border-mlb-border text-mlb-muted hover:text-mlb-text">
+          <button
+            onClick={navigateForward}
+            className="p-1.5 rounded"
+            style={{ background: "var(--color-dark)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}
+          >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
 
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="text-center py-2">
+          <div className="inline-flex items-center gap-2 text-xs" style={{ color: "var(--color-muted)" }}>
+            <div className="w-3 h-3 border-2 rounded-full animate-spin"
+              style={{ borderColor: "var(--color-border)", borderTopColor: "var(--color-primary)" }} />
+            Loading schedule...
+          </div>
+        </div>
+      )}
+
       {/* Calendar Grid */}
-      <div className="bg-mlb-card border border-mlb-border rounded-lg overflow-hidden">
-        {/* Day Headers */}
-        <div className="grid grid-cols-7 border-b border-mlb-border">
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{ border: "1px solid var(--color-border)" }}
+      >
+        {/* Day headers */}
+        <div
+          className="grid grid-cols-7"
+          style={{ background: "var(--color-panel)", borderBottom: "2px solid var(--color-primary)" }}
+        >
           {WEEKDAYS.map((day) => (
-            <div key={day} className="px-2 py-2 text-center text-[10px] font-semibold text-mlb-muted uppercase">
+            <div
+              key={day}
+              className="px-2 py-2 text-center text-[10px] font-semibold uppercase tracking-wider"
+              style={{ color: "var(--color-muted)" }}
+            >
               {day}
             </div>
           ))}
         </div>
 
-        {/* Day Cells */}
-        <div className="grid grid-cols-7">
+        {/* Day cells */}
+        <div className="grid grid-cols-7" style={{ background: "var(--color-card)" }}>
           {days.map((day, i) => {
             const key = formatDate(day);
             const dayGames = gamesByDate[key] || [];
@@ -170,33 +180,40 @@ export default function SchedulePage() {
             return (
               <div
                 key={i}
-                className={`border-b border-r border-mlb-border/50 p-1.5 ${
-                  view === "week" ? "min-h-[200px]" : "min-h-[80px]"
-                } ${!isCurrentMonth && view === "month" ? "opacity-40" : ""}`}
+                className={`p-1.5 ${view === "week" ? "min-h-[180px]" : "min-h-[80px]"}`}
+                style={{
+                  borderRight: "1px solid var(--color-border)",
+                  borderBottom: "1px solid var(--color-border)",
+                  opacity: !isCurrentMonth && view === "month" ? 0.35 : 1,
+                  background: isToday ? "rgba(94,252,141,0.04)" : "transparent",
+                }}
               >
+                {/* Day number */}
                 <div className="flex items-center justify-between mb-1">
                   <span
-                    className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${
-                      isToday
-                        ? "bg-mlb-red text-white"
-                        : "text-mlb-muted"
-                    }`}
+                    className="text-[11px] font-medium px-1.5 py-0.5 rounded-full"
+                    style={{
+                      background: isToday ? "var(--color-primary)" : "transparent",
+                      color: isToday ? "#1a1a2e" : "var(--color-muted)",
+                      fontWeight: isToday ? 700 : 400,
+                    }}
                   >
                     {day.getDate()}
                   </span>
                   {dayGames.length > 0 && (
-                    <span className="text-[9px] text-mlb-muted">
+                    <span className="text-[9px]" style={{ color: "var(--color-subtle)" }}>
                       {dayGames.length}g
                     </span>
                   )}
                 </div>
 
+                {/* Games */}
                 <div className="space-y-0.5">
-                  {dayGames.slice(0, view === "week" ? 10 : 3).map((g) => (
+                  {dayGames.slice(0, view === "week" ? 12 : 3).map((g) => (
                     <ScheduleGameCard key={g.game_id} game={g} compact={view === "month"} />
                   ))}
                   {view === "month" && dayGames.length > 3 && (
-                    <p className="text-[9px] text-mlb-muted text-center">
+                    <p className="text-[9px] text-center" style={{ color: "var(--color-subtle)" }}>
                       +{dayGames.length - 3} more
                     </p>
                   )}
@@ -207,9 +224,10 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {isLoading && (
-        <div className="text-center py-4">
-          <p className="text-xs text-mlb-muted">Loading schedule...</p>
+      {/* Empty state */}
+      {!isLoading && games.length === 0 && (
+        <div className="text-center py-6" style={{ color: "var(--color-muted)" }}>
+          <p className="text-sm">No games scheduled for this period.</p>
         </div>
       )}
     </div>
@@ -218,73 +236,94 @@ export default function SchedulePage() {
 
 function ScheduleGameCard({ game, compact }: { game: ScheduleGame; compact: boolean }) {
   const gameUrl = `/dashboard/game/${game.game_id}`;
+  const isFinal = game.status?.toLowerCase().includes("final");
+  const isLive = game.status?.toLowerCase().includes("in progress") || game.status?.toLowerCase() === "live";
 
   if (compact) {
     return (
       <Link
         href={gameUrl}
-        className="block text-[9px] text-mlb-text bg-mlb-surface/50 rounded px-1 py-0.5 truncate hover:bg-mlb-blue/10 hover:text-mlb-blue transition-colors"
+        className="block text-[9px] px-1.5 py-0.5 rounded truncate transition-colors"
+        style={{
+          background: isLive ? "rgba(94,252,141,0.1)" : "rgba(131,119,209,0.1)",
+          color: isLive ? "var(--color-primary)" : "var(--color-text)",
+        }}
       >
         {game.away_team} @ {game.home_team}
         {game.home_win_prob != null && (
-          <span className="text-mlb-muted ml-1">
-            {Math.round(game.home_win_prob * 100)}%
-          </span>
+          <span style={{ color: "var(--color-muted)" }}> {Math.round(game.home_win_prob * 100)}%</span>
         )}
       </Link>
     );
   }
 
-  const isFinal = game.status?.toLowerCase().includes("final");
-  const isLive = game.status?.toLowerCase().includes("in progress");
-
   return (
     <Link
       href={gameUrl}
-      className="block bg-mlb-surface/50 rounded p-1.5 text-[10px] hover:bg-mlb-blue/10 hover:border-mlb-blue/30 transition-colors group"
+      className="block rounded p-1.5 text-[10px] transition-all group"
+      style={{
+        background: isLive ? "rgba(94,252,141,0.06)" : "rgba(131,119,209,0.06)",
+        border: `1px solid ${isLive ? "rgba(94,252,141,0.2)" : "var(--color-border)"}`,
+        textDecoration: "none",
+      }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--color-secondary)";
+        (e.currentTarget as HTMLElement).style.background = "rgba(142,249,243,0.08)";
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.borderColor = isLive ? "rgba(94,252,141,0.2)" : "var(--color-border)";
+        (e.currentTarget as HTMLElement).style.background = isLive ? "rgba(94,252,141,0.06)" : "rgba(131,119,209,0.06)";
+      }}
     >
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-mlb-text truncate group-hover:text-mlb-blue">
+      {/* Teams */}
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="font-semibold truncate" style={{ color: "var(--color-text)" }}>
           {game.away_team} @ {game.home_team}
         </span>
         {isLive ? (
-          <span className="text-mlb-red font-semibold text-[8px]">LIVE</span>
+          <span className="text-[8px] font-bold flex items-center gap-0.5" style={{ color: "var(--color-primary)" }}>
+            <span className="w-1 h-1 rounded-full live-dot" style={{ background: "var(--color-primary)" }} />
+            LIVE
+          </span>
         ) : (
-          <ExternalLink className="w-2.5 h-2.5 text-mlb-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+          <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--color-muted)" }} />
         )}
       </div>
-      {(isFinal || isLive) && game.away_score != null && (
-        <div className="text-mlb-muted mt-0.5">
-          {game.away_score} - {game.home_score}
-          {isFinal && " F"}
+
+      {/* Score or time */}
+      {(isFinal || isLive) && game.away_score != null ? (
+        <div style={{ color: "var(--color-muted)" }}>
+          {game.away_score} – {game.home_score}
+          {isFinal && <span style={{ color: "var(--color-accent)" }}> F</span>}
         </div>
-      )}
-      {!isFinal && !isLive && (
-        <div className="flex items-center gap-1 text-mlb-muted mt-0.5">
+      ) : (
+        <div className="flex items-center gap-1" style={{ color: "var(--color-muted)" }}>
           <Clock className="w-2.5 h-2.5" />
-          <span>{game.game_datetime ? new Date(game.game_datetime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : game.status}</span>
+          <span>
+            {game.game_datetime
+              ? new Date(game.game_datetime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+              : game.status}
+          </span>
         </div>
       )}
-      {game.home_probable_pitcher && game.home_probable_pitcher !== "TBD" && (
-        <div className="text-mlb-muted mt-0.5 truncate">
-          {game.away_probable_pitcher || "TBD"} vs {game.home_probable_pitcher}
+
+      {/* Pitchers */}
+      {(game.away_probable_pitcher || game.home_probable_pitcher) && (
+        <div className="mt-0.5 truncate" style={{ color: "var(--color-subtle)", fontSize: "9px" }}>
+          {game.away_probable_pitcher || "TBD"} vs {game.home_probable_pitcher || "TBD"}
         </div>
       )}
+
+      {/* Win Probability bar */}
       {game.home_win_prob != null && (
-        <div className="mt-1">
-          <div className="flex items-center justify-between text-[8px] text-mlb-muted mb-0.5">
+        <div className="mt-1.5">
+          <div className="flex justify-between text-[8px] mb-0.5" style={{ color: "var(--color-subtle)" }}>
             <span>{Math.round((1 - game.home_win_prob) * 100)}%</span>
             <span>{Math.round(game.home_win_prob * 100)}%</span>
           </div>
-          <div className="h-1.5 rounded-full overflow-hidden flex bg-mlb-surface">
-            <div
-              className="bg-mlb-blue"
-              style={{ width: `${(1 - game.home_win_prob) * 100}%` }}
-            />
-            <div
-              className="bg-mlb-red"
-              style={{ width: `${game.home_win_prob * 100}%` }}
-            />
+          <div className="win-prob-bar">
+            <div className="away-side" style={{ width: `${(1 - game.home_win_prob) * 100}%` }} />
+            <div className="home-side" style={{ width: `${game.home_win_prob * 100}%` }} />
           </div>
         </div>
       )}

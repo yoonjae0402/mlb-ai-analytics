@@ -1,5 +1,3 @@
-import { cn } from "@/lib/utils";
-
 interface MetricCardProps {
   label: React.ReactNode;
   value: string | number;
@@ -13,26 +11,24 @@ export default function MetricCard({
   value,
   delta,
   deltaType = "neutral",
-  className,
+  className = "",
 }: MetricCardProps) {
+  const deltaColor =
+    deltaType === "positive" ? "var(--color-primary)" :
+    deltaType === "negative" ? "#f97316" :
+    "var(--color-muted)";
+
   return (
     <div
-      className={cn(
-        "bg-mlb-card border border-mlb-border rounded-xl p-4",
-        className
-      )}
+      className={`rounded-xl p-4 ${className}`}
+      style={{ background: "var(--color-card)", border: "1px solid var(--color-border)" }}
     >
-      <p className="text-xs text-mlb-muted uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-bold text-mlb-text mt-1">{value}</p>
+      <p className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>
+        {label}
+      </p>
+      <p className="text-2xl font-bold mt-1" style={{ color: "var(--color-text)" }}>{value}</p>
       {delta && (
-        <p
-          className={cn(
-            "text-xs mt-1",
-            deltaType === "positive" && "text-mlb-green",
-            deltaType === "negative" && "text-mlb-red",
-            deltaType === "neutral" && "text-mlb-muted"
-          )}
-        >
+        <p className="text-xs mt-1" style={{ color: deltaColor }}>
           {delta}
         </p>
       )}

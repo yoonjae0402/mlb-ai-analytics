@@ -264,7 +264,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <p className="text-[10px] text-center" style={{ color: "var(--color-subtle)" }}>
+          <p className="text-[10px] text-center" suppressHydrationWarning style={{ color: "var(--color-subtle)" }}>
             Auto-refreshes · {new Date().toLocaleTimeString()}
           </p>
         </div>

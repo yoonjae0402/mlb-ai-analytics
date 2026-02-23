@@ -77,7 +77,7 @@ async def leaderboard(limit: int = 25):
                 & (Prediction.created_at == subq.c.latest),
             )
             .order_by(
-                desc(Prediction.predicted_hits + Prediction.predicted_hr + Prediction.predicted_rbi)
+                desc(Prediction.predicted_hits + Prediction.predicted_hr * 4 + Prediction.predicted_rbi)
             )
             .limit(limit)
             .all()

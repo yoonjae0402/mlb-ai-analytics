@@ -18,11 +18,11 @@ const COMPARE_STATS = [
   { key: "walks", tip: "Base on balls (walks)" },
 ];
 
-const CONTEXT_COLORS: Record<string, { bg: string; color: string }> = {
-  Elite: { bg: "rgba(245,158,11,0.15)", color: "#f59e0b" },
-  Great: { bg: "rgba(94,252,141,0.15)", color: "var(--color-primary)" },
-  Average: { bg: "rgba(147,190,223,0.1)", color: "var(--color-accent)" },
-  "Below Avg": { bg: "rgba(249,115,22,0.1)", color: "#f97316" },
+const CONTEXT_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+  elite: { bg: "rgba(245,158,11,0.15)", color: "#f59e0b", label: "Elite" },
+  great: { bg: "rgba(94,252,141,0.15)", color: "var(--color-primary)", label: "Great" },
+  average: { bg: "rgba(147,190,223,0.1)", color: "var(--color-accent)", label: "Average" },
+  below_avg: { bg: "rgba(249,115,22,0.1)", color: "#f97316", label: "Below Avg" },
 };
 
 export default function ComparePage() {
@@ -219,7 +219,7 @@ function ComparisonTable({ player1, player2 }: { player1: PlayerDetail; player2:
   function getRecentAvg(pd: PlayerDetail, key: string): number {
     const recent = pd.recent_stats.slice(0, 10);
     if (recent.length === 0) return 0;
-    const vals = recent.map((s: Record<string, number>) => s[key] ?? 0);
+    const vals = recent.map((s) => ((s as unknown) as Record<string, number>)[key] ?? 0);
     return vals.reduce((a: number, b: number) => a + b, 0) / vals.length;
   }
 
@@ -254,8 +254,8 @@ function ComparisonTable({ player1, player2 }: { player1: PlayerDetail; player2:
         const winner = val1 > val2 ? 1 : val2 > val1 ? 2 : 0;
         const even = idx % 2 === 0;
 
-        const ctx1 = CONTEXT_COLORS[level1] || { bg: "transparent", color: "var(--color-muted)" };
-        const ctx2 = CONTEXT_COLORS[level2] || { bg: "transparent", color: "var(--color-muted)" };
+        const ctx1 = CONTEXT_COLORS[level1] || { bg: "transparent", color: "var(--color-muted)", label: level1 };
+        const ctx2 = CONTEXT_COLORS[level2] || { bg: "transparent", color: "var(--color-muted)", label: level2 };
 
         return (
           <div
@@ -286,7 +286,7 @@ function ComparisonTable({ player1, player2 }: { player1: PlayerDetail; player2:
                 className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
                 style={{ background: ctx1.bg, color: ctx1.color }}
               >
-                {level1}
+                {ctx1.label}
               </span>
             </div>
 
@@ -320,7 +320,7 @@ function ComparisonTable({ player1, player2 }: { player1: PlayerDetail; player2:
                 className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
                 style={{ background: ctx2.bg, color: ctx2.color }}
               >
-                {level2}
+                {ctx2.label}
               </span>
               <p
                 className="text-sm font-bold tabular-nums text-right"

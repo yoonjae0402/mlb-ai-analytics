@@ -40,8 +40,18 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """Create all tables (for development only; use Alembic in production)."""
+    from sqlalchemy import text
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Safely add any columns introduced after the initial DB creation
+        col_result = await conn.execute(text("PRAGMA table_info(player_stats)"))
+        existing_cols = {row[1] for row in col_result}
+        for col_name, ddl in [
+            ("innings_pitched", "ALTER TABLE player_stats ADD COLUMN innings_pitched FLOAT"),
+            ("earned_runs",     "ALTER TABLE player_stats ADD COLUMN earned_runs SMALLINT"),
+        ]:
+            if col_name not in existing_cols:
+                await conn.execute(text(ddl))
 
 
 def init_db_sync():

@@ -8,7 +8,7 @@ router = APIRouter(tags=["system"])
 @router.get("/system/health")
 async def system_health():
     """Full system health: model status, DB stats, uptime."""
-    from backend.core.model_service import get_model_service
+    from backend.api.dependencies import get_model_service
     from backend.db.session import SyncSessionLocal
     from backend.db.models import (
         Player, PlayerStat, Prediction, ModelVersion, Game

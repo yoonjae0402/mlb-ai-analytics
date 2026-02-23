@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     # Auto-reload latest trained models from DB checkpoints
     try:
         from backend.db.session import SyncSessionLocal
-        from backend.core.model_service import get_model_service
+        from backend.api.dependencies import get_model_service
         svc = get_model_service()
         session = SyncSessionLocal()
         try:

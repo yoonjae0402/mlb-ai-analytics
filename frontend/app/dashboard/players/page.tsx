@@ -222,7 +222,8 @@ export default function PlayersPage() {
             </button>
             {/* Page numbers */}
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              const p = Math.max(1, Math.min(page - 2 + i, totalPages - 4 + i));
+              const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+              const p = start + i;
               return (
                 <button
                   key={p}

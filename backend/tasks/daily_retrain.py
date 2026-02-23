@@ -22,7 +22,7 @@ def retrain_if_better(config: dict | None = None) -> dict:
         Dict with promotion decisions per model and final MSEs.
     """
     from backend.db.session import SyncSessionLocal
-    from backend.core.model_service import get_model_service
+    from backend.api.dependencies import get_model_service
     from backend.db.models import ModelVersion
     from sqlalchemy import desc
 
